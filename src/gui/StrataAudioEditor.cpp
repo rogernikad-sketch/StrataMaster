@@ -5,17 +5,30 @@
 namespace strata::gui {
 
 StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
-    : AudioProcessorEditor(processor), processor_(processor) {
+    : AudioProcessorEditor(processor),
+      processor_(processor),
+      moduleRackBar_(processor.getAPVTS()),
+      equalizerView_(processor.getAPVTS()),
+      dynamicsView_(processor.getAPVTS()),
+      exciterView_(processor.getAPVTS()),
+      imagerView_(processor.getAPVTS()),
+      maximizerView_(processor.getAPVTS()),
+      assistantView_(processor.getAPVTS(), processor.getAutoMasterEngine()) {
 
     setLookAndFeel(&lookAndFeel_);
 
-    // 1. Header Banner
+    // 1. Header Banner & Branding
     titleLabel_.setText("STRATA MASTER", juce::dontSendNotification);
-    titleLabel_.setFont(juce::Font(16.0f, juce::Font::bold));
+    titleLabel_.setFont(juce::Font(15.0f, juce::Font::bold));
     titleLabel_.setColour(juce::Label::textColourId, StrataLookAndFeel::accentCyan);
     addAndMakeVisible(titleLabel_);
 
-    // 2. Preset Selector
+    // 2. Preset Management with Step Buttons
+    prevPresetBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
+    prevPresetBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::textLight);
+    prevPresetBtn_.onClick = [this]() { selectPrevPreset(); };
+    addAndMakeVisible(prevPresetBtn_);
+
     presetBox_.setTextWhenNothingSelected("Select Preset");
     presetBox_.setColour(juce::ComboBox::backgroundColourId, StrataLookAndFeel::panelBg);
     presetBox_.setColour(juce::ComboBox::textColourId, StrataLookAndFeel::textLight);
@@ -24,30 +37,24 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
         const int selectedId = presetBox_.getSelectedId();
         if (selectedId > 0) {
             processor_.getPresetManager().loadFactoryPreset(static_cast<size_t>(selectedId - 1));
-            if (eqGraph_) {
-                eqGraph_->updateCurvesFromAPVTS();
-            }
+            equalizerView_.updateCurvesFromAPVTS();
         }
     };
     addAndMakeVisible(presetBox_);
 
-    // 3. Assistant Button
-    assistantButton_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg.brighter(0.1f));
-    assistantButton_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::accentGold);
-    assistantButton_.onClick = [this]() {
-        auto& engine = processor_.getAutoMasterEngine();
-        if (engine.getState() == assistant::AssistantState::Idle) {
-            engine.startListening();
-            assistantButton_.setButtonText("LISTENING (5s)...");
-        } else if (engine.getState() == assistant::AssistantState::Ready) {
-            engine.applyRecommendations(processor_.getAPVTS());
-            assistantButton_.setButtonText("MASTER APPLIED!");
-            if (eqGraph_) {
-                eqGraph_->updateCurvesFromAPVTS();
-            }
-        }
+    nextPresetBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
+    nextPresetBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::textLight);
+    nextPresetBtn_.onClick = [this]() { selectNextPreset(); };
+    addAndMakeVisible(nextPresetBtn_);
+
+    // 3. Master Assistant Header Trigger
+    assistantHeaderBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg.brighter(0.12f));
+    assistantHeaderBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::accentGold);
+    assistantHeaderBtn_.onClick = [this]() {
+        moduleRackBar_.setSelectedModule(ModuleID::Assistant);
+        showModule(ModuleID::Assistant);
     };
-    addAndMakeVisible(assistantButton_);
+    addAndMakeVisible(assistantHeaderBtn_);
 
     // 4. Reference A/B Button & Gain Match
     abButton_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
@@ -72,53 +79,53 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
     };
     addAndMakeVisible(gainMatchButton_);
 
-    // 5. Bypass Button
+    // 5. Global Bypass Toggle
     bypassButton_.setColour(juce::ToggleButton::textColourId, StrataLookAndFeel::textLight);
     bypassAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         processor_.getAPVTS(), param::Bypass.data(), bypassButton_);
     addAndMakeVisible(bypassButton_);
 
-    // 6. Left Input Stage
-    addAndMakeVisible(inputMeter_);
+    // 6. Module Rack Bar
+    moduleRackBar_.onModuleSelected = [this](ModuleID id) {
+        showModule(id);
+    };
+    addAndMakeVisible(moduleRackBar_);
+
+    // 7. Active Views
+    addAndMakeVisible(equalizerView_);
+    addChildComponent(dynamicsView_);
+    addChildComponent(exciterView_);
+    addChildComponent(imagerView_);
+    addChildComponent(maximizerView_);
+    addChildComponent(assistantView_);
+
+    assistantView_.onMasterApplied = [this]() {
+        equalizerView_.updateCurvesFromAPVTS();
+    };
+
+    // 8. Right Master I/O & Metering Panel
     inputGainKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::InputGain.data(), "IN GAIN");
     addAndMakeVisible(*inputGainKnob_);
+    addAndMakeVisible(inputMeter_);
 
-    // 7. Center Spectrum & Interactive EQ Graph (Layered)
-    addAndMakeVisible(spectrumDisplay_);
-    eqGraph_ = std::make_unique<EQNodeGraph>(processor_.getAPVTS());
-    addAndMakeVisible(*eqGraph_);
+    addAndMakeVisible(loudnessMeterBar_);
 
-    // 8. Center Knobs: Width, Stereo Mode, Limiter Threshold, Limiter Ceiling
-    stereoWidthKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::StereoWidth.data(), "WIDTH");
-    addAndMakeVisible(*stereoWidthKnob_);
-
-    stereoModeBox_.addItemList(juce::StringArray{"Stereo", "Mid/Side", "Mid Solo", "Side Solo"}, 1);
-    stereoModeBox_.setColour(juce::ComboBox::backgroundColourId, StrataLookAndFeel::panelBg);
-    stereoModeBox_.setColour(juce::ComboBox::textColourId, StrataLookAndFeel::textLight);
-    stereoModeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        processor_.getAPVTS(), param::StereoMode.data(), stereoModeBox_);
-    addAndMakeVisible(stereoModeBox_);
-
-    limiterThresholdKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::LimiterThreshold.data(), "LIMIT THRESH");
-    addAndMakeVisible(*limiterThresholdKnob_);
-
-    limiterCeilingKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::LimiterCeiling.data(), "CEILING");
-    addAndMakeVisible(*limiterCeilingKnob_);
-
-    // 9. Correlation Label
     correlationLabel_.setText("CORR: +1.00", juce::dontSendNotification);
-    correlationLabel_.setFont(juce::Font(11.0f, juce::Font::plain));
+    correlationLabel_.setFont(juce::Font(11.0f, juce::Font::bold));
     correlationLabel_.setJustificationType(juce::Justification::centred);
     correlationLabel_.setColour(juce::Label::textColourId, StrataLookAndFeel::textDim);
     addAndMakeVisible(correlationLabel_);
 
-    // 10. Right Stage: Loudness Bar & Output
-    addAndMakeVisible(loudnessMeterBar_);
     addAndMakeVisible(outputMeter_);
     outputGainKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::OutputGain.data(), "OUT GAIN");
     addAndMakeVisible(*outputGainKnob_);
 
-    setSize(960, 560);
+    // Resizable Window Support
+    setResizable(true, true);
+    setResizeLimits(960, 580, 1600, 1000);
+    setSize(1040, 640);
+
+    showModule(ModuleID::Equalizer);
     startTimerHz(60);
 }
 
@@ -135,8 +142,39 @@ void StrataAudioEditor::populatePresetBox() {
     }
 }
 
+void StrataAudioEditor::selectPrevPreset() {
+    int currentId = presetBox_.getSelectedId();
+    if (currentId <= 1) {
+        currentId = presetBox_.getNumItems();
+    } else {
+        currentId--;
+    }
+    presetBox_.setSelectedId(currentId);
+}
+
+void StrataAudioEditor::selectNextPreset() {
+    int currentId = presetBox_.getSelectedId();
+    if (currentId >= presetBox_.getNumItems()) {
+        currentId = 1;
+    } else {
+        currentId++;
+    }
+    presetBox_.setSelectedId(currentId);
+}
+
+void StrataAudioEditor::showModule(ModuleID id) {
+    equalizerView_.setVisible(id == ModuleID::Equalizer);
+    dynamicsView_.setVisible(id == ModuleID::Dynamics);
+    exciterView_.setVisible(id == ModuleID::Exciter);
+    imagerView_.setVisible(id == ModuleID::Imager);
+    maximizerView_.setVisible(id == ModuleID::Maximizer);
+    assistantView_.setVisible(id == ModuleID::Assistant);
+
+    resized();
+}
+
 void StrataAudioEditor::timerCallback() {
-    // 1. Input / Output Peak Meters
+    // 1. Peak I/O Meters
     float inL = 0.0f, inR = 0.0f, outL = 0.0f, outR = 0.0f;
     processor_.getMeterLevels(inL, inR, outL, outR);
     inputMeter_.setLevel(inL, inR);
@@ -153,10 +191,16 @@ void StrataAudioEditor::timerCallback() {
         correlationLabel_.setColour(juce::Label::textColourId, juce::Colours::red);
     }
 
-    // 3. 60 FPS Spectrum Update
-    spectrumDisplay_.updateSpectrum(processor_.getSpectrumAnalyzer());
+    if (imagerView_.isVisible()) {
+        imagerView_.setCorrelation(correlationValue_);
+    }
 
-    // 4. Loudness & True Peak Meters
+    // 3. Equalizer 60 FPS Spectrum
+    if (equalizerView_.isVisible()) {
+        equalizerView_.updateSpectrum(processor_.getSpectrumAnalyzer());
+    }
+
+    // 4. Loudness & True Peak
     const auto& bs1770 = processor_.getBS1770Meter();
     const auto& tp = processor_.getTruePeakMeter();
     loudnessMeterBar_.updateLevels(
@@ -166,13 +210,21 @@ void StrataAudioEditor::timerCallback() {
         bs1770.getLoudnessRange(),
         tp.getMaxTruePeakDb());
 
-    // 5. Assistant State Updates
-    auto& engine = processor_.getAutoMasterEngine();
-    if (engine.getState() == assistant::AssistantState::Listening) {
-        const float prog = engine.getListeningProgressPercent();
-        assistantButton_.setButtonText(juce::String::formatted("ANALYZING (%.0f%%)", prog));
-    } else if (engine.getState() == assistant::AssistantState::Ready && assistantButton_.getButtonText().startsWith("ANALYZING")) {
-        assistantButton_.setButtonText("APPLY MASTER");
+    // 5. Maximizer View Telemetry
+    if (maximizerView_.isVisible()) {
+        maximizerView_.updateLimiterState(
+            processor_.getTruePeakLimiter().getGainReductionDb(),
+            tp.getMaxTruePeakDb());
+    }
+
+    // 6. Dynamics View Telemetry
+    if (dynamicsView_.isVisible()) {
+        dynamicsView_.updateGainReduction(0, processor_.getMultibandDynamics().getGainReductionDb(0));
+    }
+
+    // 7. Assistant View Telemetry
+    if (assistantView_.isVisible()) {
+        assistantView_.updateTelemetry();
     }
 }
 
@@ -181,75 +233,68 @@ void StrataAudioEditor::paint(juce::Graphics& g) {
 
     // Top Header Banner
     g.setColour(StrataLookAndFeel::panelBg);
-    g.fillRect(0, 0, getWidth(), 46);
+    g.fillRect(0, 0, getWidth(), 44);
 
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawHorizontalLine(46, 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine(44, 0.0f, static_cast<float>(getWidth()));
 
-    // Bottom Controls Banner
-    g.setColour(StrataLookAndFeel::panelBg.darker(0.1f));
-    g.fillRect(0, getHeight() - 110, getWidth(), 110);
+    // Right Metering Panel Background
+    const int rightWidth = 145;
+    const int rightX = getWidth() - rightWidth;
+    g.setColour(StrataLookAndFeel::panelBg.darker(0.12f));
+    g.fillRect(rightX, 44, rightWidth, getHeight() - 44);
+
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawHorizontalLine(getHeight() - 110, 0.0f, static_cast<float>(getWidth()));
-
-    // Phase Correlation Mini Bar in bottom center
-    const float barW = 160.0f;
-    const float barH = 6.0f;
-    const float barX = (getWidth() - barW) * 0.5f;
-    const float barY = static_cast<float>(getHeight() - 24);
-
-    g.setColour(juce::Colour(0xFF0F131C));
-    g.fillRoundedRectangle(barX, barY, barW, barH, 3.0f);
-
-    const float normCorr = (correlationValue_ + 1.0f) * 0.5f;
-    const float needleX = barX + normCorr * barW;
-    g.setColour(StrataLookAndFeel::accentCyan);
-    g.fillEllipse(needleX - 3.0f, barY - 2.0f, 6.0f, 10.0f);
+    g.drawVerticalLine(rightX, 44.0f, static_cast<float>(getHeight()));
 }
 
 void StrataAudioEditor::resized() {
     auto bounds = getLocalBounds();
 
-    // 1. Top Header (46px)
-    auto header = bounds.removeFromTop(46).reduced(12, 6);
-    titleLabel_.setBounds(header.removeFromLeft(160));
-    presetBox_.setBounds(header.removeFromLeft(180));
-    header.removeFromLeft(16);
-    assistantButton_.setBounds(header.removeFromLeft(140));
-    header.removeFromLeft(16);
+    // 1. Top Header Bar (44px)
+    auto header = bounds.removeFromTop(44).reduced(10, 6);
+    titleLabel_.setBounds(header.removeFromLeft(150));
+    prevPresetBtn_.setBounds(header.removeFromLeft(24));
+    header.removeFromLeft(2);
+    presetBox_.setBounds(header.removeFromLeft(160));
+    header.removeFromLeft(2);
+    nextPresetBtn_.setBounds(header.removeFromLeft(24));
+
+    header.removeFromLeft(14);
+    assistantHeaderBtn_.setBounds(header.removeFromLeft(145));
+
+    header.removeFromLeft(14);
     abButton_.setBounds(header.removeFromLeft(130));
-    gainMatchButton_.setBounds(header.removeFromLeft(110));
-    bypassButton_.setBounds(header.removeFromRight(90));
+    gainMatchButton_.setBounds(header.removeFromLeft(105));
+    bypassButton_.setBounds(header.removeFromRight(85));
 
-    // 2. Bottom Controls Strip (110px)
-    auto bottom = bounds.removeFromBottom(110).reduced(16, 8);
-    const int knobW = 80;
-    const int knobH = 90;
+    // 2. Right Metering Strip (145px)
+    auto right = bounds.removeFromRight(145).reduced(8, 8);
+    auto topMeters = right.removeFromTop(75);
+    inputGainKnob_->setBounds(topMeters.removeFromLeft(60));
+    inputMeter_.setBounds(topMeters.removeFromLeft(22));
 
-    auto bottomCenter = bottom.withSizeKeepingCentre(500, 90);
-    stereoWidthKnob_->setBounds(bottomCenter.getX(), bottomCenter.getY(), knobW, knobH);
-    stereoModeBox_.setBounds(bottomCenter.getX() + knobW + 10, bottomCenter.getY() + 32, 110, 24);
-    correlationLabel_.setBounds(bottomCenter.getX() + knobW + 10, bottomCenter.getY() + 60, 110, 16);
+    right.removeFromTop(6);
+    correlationLabel_.setBounds(right.removeFromTop(18));
+    right.removeFromTop(4);
+    loudnessMeterBar_.setBounds(right.removeFromTop(getHeight() - 250));
 
-    limiterThresholdKnob_->setBounds(bottomCenter.getX() + 240, bottomCenter.getY(), knobW, knobH);
-    limiterCeilingKnob_->setBounds(bottomCenter.getX() + 340, bottomCenter.getY(), knobW, knobH);
+    right.removeFromTop(6);
+    auto bottomMeters = right.removeFromBottom(75);
+    outputMeter_.setBounds(bottomMeters.removeFromLeft(22));
+    outputGainKnob_->setBounds(bottomMeters.removeFromLeft(60));
 
-    // 3. Left Input Strip (90px)
-    auto leftArea = bounds.removeFromLeft(90).reduced(10, 8);
-    inputGainKnob_->setBounds(leftArea.removeFromTop(80));
-    inputMeter_.setBounds(leftArea.reduced(14, 4));
+    // 3. Module Rack Bar (38px)
+    moduleRackBar_.setBounds(bounds.removeFromTop(38));
 
-    // 4. Right Output & Loudness Strip (150px)
-    auto rightArea = bounds.removeFromRight(150).reduced(10, 8);
-    auto rightTop = rightArea.removeFromTop(80);
-    outputGainKnob_->setBounds(rightTop.removeFromRight(70));
-    outputMeter_.setBounds(rightTop.reduced(10, 0));
-    loudnessMeterBar_.setBounds(rightArea.reduced(4, 2));
-
-    // 5. Center Visualizer & Interactive EQ Graph
-    auto centerArea = bounds.reduced(8, 8);
-    spectrumDisplay_.setBounds(centerArea);
-    eqGraph_->setBounds(centerArea); // Overlaid directly on top of spectrum
+    // 4. Center Workspace for Active View
+    auto workspace = bounds.reduced(4, 4);
+    equalizerView_.setBounds(workspace);
+    dynamicsView_.setBounds(workspace);
+    exciterView_.setBounds(workspace);
+    imagerView_.setBounds(workspace);
+    maximizerView_.setBounds(workspace);
+    assistantView_.setBounds(workspace);
 }
 
 } // namespace strata::gui

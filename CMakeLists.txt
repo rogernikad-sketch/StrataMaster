@@ -76,6 +76,22 @@ set(STRATA_SOURCES
     src/gui/components/EQNodeGraph.cpp
     src/gui/components/LoudnessMeterBar.h
     src/gui/components/LoudnessMeterBar.cpp
+    src/gui/components/ModuleRackBar.h
+    src/gui/components/ModuleRackBar.cpp
+    src/gui/components/CrossoverGraph.h
+    src/gui/components/CrossoverGraph.cpp
+    src/gui/views/EqualizerView.h
+    src/gui/views/EqualizerView.cpp
+    src/gui/views/DynamicsView.h
+    src/gui/views/DynamicsView.cpp
+    src/gui/views/ExciterView.h
+    src/gui/views/ExciterView.cpp
+    src/gui/views/ImagerView.h
+    src/gui/views/ImagerView.cpp
+    src/gui/views/MaximizerView.h
+    src/gui/views/MaximizerView.cpp
+    src/gui/views/MasterAssistantView.h
+    src/gui/views/MasterAssistantView.cpp
     src/gui/StrataAudioEditor.h
     src/gui/StrataAudioEditor.cpp
 )
@@ -88,7 +104,7 @@ juce_add_plugin(StrataMaster
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD TRUE
+    COPY_PLUGIN_AFTER_BUILD FALSE
     PLUGIN_MANUFACTURER_CODE StAu
     PLUGIN_CODE StMa
     FORMATS VST3 Standalone

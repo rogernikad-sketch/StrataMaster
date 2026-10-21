@@ -21,6 +21,7 @@ set(TEST_SOURCES
     test_assistant.cpp
     test_performance.cpp
     test_audio_stream.cpp
+    test_modular_gui.cpp
     ../src/dsp/StereoProcessor.cpp
     ../src/dsp/BiquadFilter.cpp
     ../src/dsp/DynamicEqualizer.cpp
@@ -47,6 +48,14 @@ set(TEST_SOURCES
     ../src/gui/components/SpectrumDisplay.cpp
     ../src/gui/components/EQNodeGraph.cpp
     ../src/gui/components/LoudnessMeterBar.cpp
+    ../src/gui/components/ModuleRackBar.cpp
+    ../src/gui/components/CrossoverGraph.cpp
+    ../src/gui/views/EqualizerView.cpp
+    ../src/gui/views/DynamicsView.cpp
+    ../src/gui/views/ExciterView.cpp
+    ../src/gui/views/ImagerView.cpp
+    ../src/gui/views/MaximizerView.cpp
+    ../src/gui/views/MasterAssistantView.cpp
     ../src/gui/StrataAudioEditor.cpp
 )
 

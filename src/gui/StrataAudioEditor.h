@@ -4,9 +4,14 @@
 #include "LookAndFeel.h"
 #include "components/Knob.h"
 #include "components/LevelMeter.h"
-#include "components/SpectrumDisplay.h"
-#include "components/EQNodeGraph.h"
 #include "components/LoudnessMeterBar.h"
+#include "components/ModuleRackBar.h"
+#include "views/EqualizerView.h"
+#include "views/DynamicsView.h"
+#include "views/ExciterView.h"
+#include "views/ImagerView.h"
+#include "views/MaximizerView.h"
+#include "views/MasterAssistantView.h"
 
 namespace strata::engine {
     class StrataAudioProcessor;
@@ -23,44 +28,48 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    void showModule(ModuleID id);
+
 private:
     void populatePresetBox();
+    void selectPrevPreset();
+    void selectNextPreset();
 
     engine::StrataAudioProcessor& processor_;
     StrataLookAndFeel lookAndFeel_;
 
-    // Header Controls
+    // 1. Header Bar Controls
     juce::Label titleLabel_;
     juce::ComboBox presetBox_;
-    juce::TextButton assistantButton_{ "LEARN MASTER" };
+    juce::TextButton prevPresetBtn_{ "<" };
+    juce::TextButton nextPresetBtn_{ ">" };
+    juce::TextButton assistantHeaderBtn_{ "MASTER ASSISTANT" };
     juce::TextButton abButton_{ "TRACK A" };
     juce::ToggleButton gainMatchButton_{ "GAIN MATCH" };
     juce::ToggleButton bypassButton_{ "BYPASS" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment_;
 
-    // Left Input Stage
+    // 2. Module Rack Bar (Modular mastering chain navigation)
+    ModuleRackBar moduleRackBar_;
+
+    // 3. Modular Active Views
+    EqualizerView equalizerView_;
+    DynamicsView dynamicsView_;
+    ExciterView exciterView_;
+    ImagerView imagerView_;
+    MaximizerView maximizerView_;
+    MasterAssistantView assistantView_;
+
+    // 4. Right Master I/O & Broadcast Metering Stage
     LevelMeter inputMeter_;
     std::unique_ptr<Knob> inputGainKnob_;
-
-    // Center Visualizer & Processing Stage
-    SpectrumDisplay spectrumDisplay_;
-    std::unique_ptr<EQNodeGraph> eqGraph_;
-
-    // Center Controls (Width, Mode, Limiter)
-    std::unique_ptr<Knob> stereoWidthKnob_;
-    juce::ComboBox stereoModeBox_;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> stereoModeAttachment_;
-    std::unique_ptr<Knob> limiterThresholdKnob_;
-    std::unique_ptr<Knob> limiterCeilingKnob_;
-
-    // Phase Correlation
-    juce::Label correlationLabel_;
-    float correlationValue_{ 1.0f };
-
-    // Right Meter & Output Stage
     LoudnessMeterBar loudnessMeterBar_;
     LevelMeter outputMeter_;
     std::unique_ptr<Knob> outputGainKnob_;
+
+    // Phase Correlation Indicator
+    juce::Label correlationLabel_;
+    float correlationValue_{ 1.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StrataAudioEditor)
 };

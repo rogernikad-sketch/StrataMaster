@@ -16,5 +16,13 @@ Preset System,engine,must,yes,yes,Atomic XML/JSON state serialization with 5 cur
 Reference A/B,engine,should,yes,yes,Level-matched reference track player with 20ms click-free crossfade,test_preset.cpp,VERIFIED
 Mastering Assistant,assistant,should,yes,yes,Intelligent target-profile matching and automatic decision engine,test_assistant.cpp,VERIFIED
 Reference Matcher,assistant,should,yes,yes,8-band Match EQ spectral difference sculptor,test_assistant.cpp,VERIFIED
-Precision Vector GUI,gui,must,yes,yes,60 FPS spectrum display interactive EQ nodes and BS.1770 loudness bar,StrataMaster_Standalone & VST3,VERIFIED
+Precision Vector GUI,gui,must,yes,yes,60 FPS spectrum display interactive EQ nodes and BS.1770 loudness bar,test_modular_gui.cpp,VERIFIED
+Module Rack Navigation,gui,must,yes,yes,Ozone 11 style top module strip with 6 selectable processing views,test_modular_gui.cpp,VERIFIED
+Equalizer View,gui,must,yes,yes,8-band interactive node graph + band parameters + dynamic EQ + MS mode,test_modular_gui.cpp,VERIFIED
+Multiband Dynamics View,gui,must,yes,yes,4-band crossover graph + draggable splits + threshold/ratio/makeup/solo/mute,test_modular_gui.cpp,VERIFIED
+Harmonic Exciter View,gui,must,yes,yes,4-band crossover + Tape/Tube/Warm/Retro mode + drive/mix + oversampling,test_modular_gui.cpp,VERIFIED
+Stereo Imager View,gui,must,yes,yes,4-band width + Mono-Maker bass anchor + Haas stereoizer + polar visualizer,test_modular_gui.cpp,VERIFIED
+Maximizer View,gui,must,yes,yes,Ceiling + Threshold + 3ms lookahead + Soft Clipper + real-time GR meter,test_modular_gui.cpp,VERIFIED
+Master Assistant View,assistant,must,yes,yes,Target profile selection + 5s listening progress + recommendations card,test_modular_gui.cpp,VERIFIED
+Responsive Window Resizing,gui,should,yes,yes,Fluid dynamic window scaling from 960x580 to 1600x1000 without glitches,test_modular_gui.cpp,VERIFIED
 Host Integration & Performance,host,must,yes,yes,Cubase 14 VST3 deployment with <3% CPU load and >35x real-time speed,test_performance.cpp,VERIFIED
