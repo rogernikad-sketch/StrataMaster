@@ -1,0 +1,62 @@
+/**
+ * StrataMaster Design Tokens (CSS Custom Properties)
+ * Generated via replica-design
+ */
+
+:root {
+  /* Surface and Background Colors */
+  --strata-color-bg: #0B0E14;
+  --strata-color-surface: #141923;
+  --strata-color-surface-raised: #1E2533;
+  --strata-color-border: #2A3447;
+  --strata-color-border-input: #3D4C63;
+
+  /* Typography Colors */
+  --strata-color-text: #F0F4F8;
+  --strata-color-text-muted: #8A99AD;
+
+  /* Accent & Telemetry */
+  --strata-color-accent: #00E5FF;
+  --strata-color-accent-alt: #FFB300;
+  --strata-color-on-accent: #0B0E14;
+  --strata-color-danger: #FF4D4D;
+  --strata-color-success: #00E676;
+
+  /* Typography Families */
+  --strata-font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --strata-font-mono: 'SF Mono', Consolas, 'Roboto Mono', Menlo, monospace;
+
+  /* Typography Scale */
+  --strata-type-xs-size: 10px;
+  --strata-type-xs-line: 14px;
+  --strata-type-sm-size: 12px;
+  --strata-type-sm-line: 16px;
+  --strata-type-base-size: 14px;
+  --strata-type-base-line: 18px;
+  --strata-type-lg-size: 16px;
+  --strata-type-lg-line: 20px;
+  --strata-type-xl-size: 20px;
+  --strata-type-xl-line: 24px;
+
+  /* Spacing Scale */
+  --strata-space-0: 0px;
+  --strata-space-1: 2px;
+  --strata-space-2: 4px;
+  --strata-space-3: 8px;
+  --strata-space-4: 12px;
+  --strata-space-5: 16px;
+  --strata-space-6: 20px;
+  --strata-space-7: 24px;
+  --strata-space-8: 32px;
+  --strata-space-9: 48px;
+
+  /* Border Radii */
+  --strata-radius-sm: 3px;
+  --strata-radius-md: 6px;
+  --strata-radius-lg: 8px;
+  --strata-radius-pill: 999px;
+
+  /* Shadows */
+  --strata-shadow-module: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --strata-shadow-glow: 0 0 12px rgba(0, 229, 255, 0.25);
+}
