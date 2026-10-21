@@ -80,16 +80,38 @@ StrataAudioProcessor::StrataAudioProcessor()
 }
 
 void StrataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
+    const float inGain = inputGainParam_ ? inputGainParam_->load(std::memory_order_relaxed) : 0.0f;
+    const float outGain = outputGainParam_ ? outputGainParam_->load(std::memory_order_relaxed) : 0.0f;
+    const float width = stereoWidthParam_ ? stereoWidthParam_->load(std::memory_order_relaxed) : 1.0f;
+
     inputGainSmoother_.reset(sampleRate, 0.02);
+    inputGainSmoother_.setCurrentAndTargetValue(dsp::decibelsToGain(inGain));
     outputGainSmoother_.reset(sampleRate, 0.02);
+    outputGainSmoother_.setCurrentAndTargetValue(dsp::decibelsToGain(outGain));
     stereoWidthSmoother_.reset(sampleRate, 0.02);
+    stereoWidthSmoother_.setCurrentAndTargetValue(width);
 
     stereoProcessor_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
     dynamicEqualizer_.prepare(sampleRate);
     multibandDynamics_.prepare(sampleRate);
-    saturator_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock), dsp::OversamplingFactor::X4);
+
+    dsp::OversamplingFactor factor = dsp::OversamplingFactor::X4;
+    lastOversamplingIdx_ = exciterOversamplingParam_ ? static_cast<int>(exciterOversamplingParam_->load(std::memory_order_relaxed)) : 2;
+    switch (lastOversamplingIdx_) {
+        case 0: factor = dsp::OversamplingFactor::None; break;
+        case 1: factor = dsp::OversamplingFactor::X2;   break;
+        case 2: factor = dsp::OversamplingFactor::X4;   break;
+        case 3: factor = dsp::OversamplingFactor::X8;   break;
+        default: factor = dsp::OversamplingFactor::X4;  break;
+    }
+    saturator_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock), factor);
+
     transientProcessor_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
+
     truePeakLimiter_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
+    lastLookaheadMs_ = limiterLookaheadParam_ ? limiterLookaheadParam_->load(std::memory_order_relaxed) : 3.0f;
+    truePeakLimiter_.setLookaheadMs(lastLookaheadMs_);
+
     correlationMeter_.prepare(sampleRate);
     bs1770Meter_.prepare(sampleRate);
     truePeakMeter_.prepare(sampleRate);
@@ -103,6 +125,8 @@ void StrataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 }
 
 void StrataAudioProcessor::releaseResources() {
+    lastOversamplingIdx_ = -1;
+    lastLookaheadMs_ = -1.0f;
     stereoProcessor_.reset();
     dynamicEqualizer_.reset();
     multibandDynamics_.reset();
@@ -184,18 +208,21 @@ void StrataAudioProcessor::updateDynamicsParametersFromState() noexcept {
 void StrataAudioProcessor::updateExciterParametersFromState() noexcept {
     if (exciterOversamplingParam_) {
         const int osIdx = static_cast<int>(exciterOversamplingParam_->load(std::memory_order_relaxed));
-        dsp::OversamplingFactor factor = dsp::OversamplingFactor::X4;
-        switch (osIdx) {
-            case 0: factor = dsp::OversamplingFactor::None; break;
-            case 1: factor = dsp::OversamplingFactor::X2;   break;
-            case 2: factor = dsp::OversamplingFactor::X4;   break;
-            case 3: factor = dsp::OversamplingFactor::X8;   break;
-            default: factor = dsp::OversamplingFactor::X4;  break;
-        }
-        saturator_.setOversamplingFactor(factor);
-        const int latency = static_cast<int>(saturator_.getLatencyInSamples());
-        if (getLatencySamples() != latency) {
-            setLatencySamples(latency);
+        if (osIdx != lastOversamplingIdx_) {
+            lastOversamplingIdx_ = osIdx;
+            dsp::OversamplingFactor factor = dsp::OversamplingFactor::X4;
+            switch (osIdx) {
+                case 0: factor = dsp::OversamplingFactor::None; break;
+                case 1: factor = dsp::OversamplingFactor::X2;   break;
+                case 2: factor = dsp::OversamplingFactor::X4;   break;
+                case 3: factor = dsp::OversamplingFactor::X8;   break;
+                default: factor = dsp::OversamplingFactor::X4;  break;
+            }
+            saturator_.setOversamplingFactor(factor);
+            const int totalLatency = static_cast<int>(saturator_.getLatencyInSamples() + truePeakLimiter_.getLatencyInSamples());
+            if (getLatencySamples() != totalLatency) {
+                setLatencySamples(totalLatency);
+            }
         }
     }
 
@@ -267,12 +294,15 @@ void StrataAudioProcessor::updateLimiterParametersFromState() noexcept {
         truePeakLimiter_.setReleaseMs(limiterReleaseParam_->load(std::memory_order_relaxed));
     }
     if (limiterLookaheadParam_) {
-        truePeakLimiter_.setLookaheadMs(limiterLookaheadParam_->load(std::memory_order_relaxed));
-    }
-
-    const int totalLatency = static_cast<int>(saturator_.getLatencyInSamples() + truePeakLimiter_.getLatencyInSamples());
-    if (getLatencySamples() != totalLatency) {
-        setLatencySamples(totalLatency);
+        const float lookaheadMs = limiterLookaheadParam_->load(std::memory_order_relaxed);
+        if (std::abs(lookaheadMs - lastLookaheadMs_) > 1e-4f) {
+            lastLookaheadMs_ = lookaheadMs;
+            truePeakLimiter_.setLookaheadMs(lookaheadMs);
+            const int totalLatency = static_cast<int>(saturator_.getLatencyInSamples() + truePeakLimiter_.getLatencyInSamples());
+            if (getLatencySamples() != totalLatency) {
+                setLatencySamples(totalLatency);
+            }
+        }
     }
 }
 

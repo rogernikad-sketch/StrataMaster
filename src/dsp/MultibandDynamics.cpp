@@ -22,6 +22,20 @@ void SingleBandCompressor::reset() noexcept {
 }
 
 void SingleBandCompressor::updateSettings(const BandDynamicsSettings& settings) noexcept {
+    if (settings_.enabled == settings.enabled &&
+        settings_.bypass == settings.bypass &&
+        settings_.solo == settings.solo &&
+        settings_.mute == settings.mute &&
+        std::abs(settings_.thresholdDb - settings.thresholdDb) < 0.01f &&
+        std::abs(settings_.ratio - settings.ratio) < 0.001f &&
+        std::abs(settings_.attackMs - settings.attackMs) < 0.1f &&
+        std::abs(settings_.releaseMs - settings.releaseMs) < 0.1f &&
+        std::abs(settings_.kneeWidthDb - settings.kneeWidthDb) < 0.01f &&
+        std::abs(settings_.makeupGainDb - settings.makeupGainDb) < 0.01f &&
+        settings_.autoMakeup == settings.autoMakeup) {
+        return;
+    }
+
     settings_ = settings;
     if (sampleRate_ <= 0.0) {
         return;

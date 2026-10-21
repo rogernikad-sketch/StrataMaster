@@ -20,6 +20,7 @@ set(TEST_SOURCES
     test_preset.cpp
     test_assistant.cpp
     test_performance.cpp
+    test_audio_stream.cpp
     ../src/dsp/StereoProcessor.cpp
     ../src/dsp/BiquadFilter.cpp
     ../src/dsp/DynamicEqualizer.cpp

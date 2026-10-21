@@ -39,6 +39,20 @@ void DynamicBand::updateEnvelopeBallistics() noexcept {
 }
 
 void DynamicBand::updateSettings(const DynamicBandSettings& settings, bool snapImmediately) noexcept {
+    if (!snapImmediately &&
+        settings_.enabled == settings.enabled &&
+        settings_.type == settings.type &&
+        std::abs(settings_.frequencyHz - settings.frequencyHz) < 0.01f &&
+        std::abs(settings_.gainDb - settings.gainDb) < 0.01f &&
+        std::abs(settings_.q - settings.q) < 0.001f &&
+        settings_.dynamicEnabled == settings.dynamicEnabled &&
+        std::abs(settings_.thresholdDb - settings.thresholdDb) < 0.01f &&
+        std::abs(settings_.dynamicRangeDb - settings.dynamicRangeDb) < 0.01f &&
+        std::abs(settings_.attackMs - settings.attackMs) < 0.1f &&
+        std::abs(settings_.releaseMs - settings.releaseMs) < 0.1f) {
+        return;
+    }
+
     settings_ = settings;
     updateEnvelopeBallistics();
 

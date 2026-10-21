@@ -188,6 +188,10 @@ private:
     std::atomic<float> outputPeakL_{0.0f};
     std::atomic<float> outputPeakR_{0.0f};
 
+    // Cached latency-affecting parameter states
+    int lastOversamplingIdx_{ -1 };
+    float lastLookaheadMs_{ -1.0f };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StrataAudioProcessor)
 };
 

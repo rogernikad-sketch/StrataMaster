@@ -24,9 +24,20 @@ void CrossoverFilterbank::reset() noexcept {
 }
 
 void CrossoverFilterbank::setCrossoverFrequencies(float f1, float f2, float f3, bool snapImmediately) noexcept {
-    f1_ = std::clamp(f1, 20.0f, 1000.0f);
-    f2_ = std::clamp(f2, f1_ * 1.25f, 8000.0f);
-    f3_ = std::clamp(f3, f2_ * 1.25f, static_cast<float>(sampleRate_ * 0.45));
+    const float newF1 = std::clamp(f1, 20.0f, 1000.0f);
+    const float newF2 = std::clamp(f2, newF1 * 1.25f, 8000.0f);
+    const float newF3 = std::clamp(f3, newF2 * 1.25f, static_cast<float>(sampleRate_ * 0.45));
+
+    if (!snapImmediately &&
+        std::abs(newF1 - f1_) < 0.01f &&
+        std::abs(newF2 - f2_) < 0.01f &&
+        std::abs(newF3 - f3_) < 0.01f) {
+        return;
+    }
+
+    f1_ = newF1;
+    f2_ = newF2;
+    f3_ = newF3;
 
     updateFilters(snapImmediately);
 }
