@@ -1,0 +1,23 @@
+{
+  "avoid": [
+    "iZotope",
+    "Ozone",
+    "Ozone 11",
+    "Maximizer",
+    "Neutron",
+    "Nectar"
+  ],
+  "app_store": {
+    "name": "StrataMaster: Audio Mastering",
+    "subtitle": "Studio True-Peak & LUFS Rack",
+    "promotional_text": "Professional C++20 mastering suite: 8-band dynamic EQ, 4-band dynamics, oversampled saturation, stereo imager, lookahead true-peak limiter, and EBU R128 loudness metering.",
+    "description": "StrataMaster is a professional audio mastering suite and standalone audio processor built with modern C++20.\n\nDeliver broadcast-ready masters with pristine acoustic transparency, ultra-low CPU overhead, and zero bloat.\n\nWhat you get:\n- 8-band parametric & dynamic equalizer with sidechain modulation\n- 4-band phase-compensated Linkwitz-Riley crossover flat to 0.003 dB\n- Multiband dynamics processor with downward compression and auto-makeup\n- Harmonic exciter with 4x/8x oversampled Tape, Tube, and Warm saturation\n- Microdynamics transient and sustain envelope shaper\n- Stereo imager with Haas stereoizer and 100% mono cancellation guarantee\n- Lookahead true-peak limiter with 4x polyphase inter-sample detection\n- ITU-R BS.1770-4 & EBU R128 loudness metering (Integrated, Short-Term, Momentary LUFS, and LRA)\n- 4096-point real-time FFT spectrum analyzer with octave smoothing\n- Level-matched reference track player with click-free A/B crossfading\n- Intelligent mastering assistant with streaming, club, pop, and acoustic targets\n\nRuns smoothly on your system with under 3% CPU usage and zero background daemons.",
+    "keywords": "mastering,audio,vst3,equalizer,limiter,lufs,compressor,dynamics,studio,sound,daw,mixing",
+    "whats_new": "StrataMaster 1.0.0 initial release with complete 10-module mastering DSP chain."
+  },
+  "google_play": {
+    "title": "StrataMaster: Audio Mastering",
+    "short_description": "Broadcast audio mastering suite: dynamic EQ, true-peak limiter, and LUFS meters.",
+    "full_description": "StrataMaster is a professional audio mastering suite and standalone audio processor built with modern C++20.\n\nDeliver broadcast-ready masters with pristine acoustic transparency, ultra-low CPU overhead, and zero bloat.\n\nKey features:\n- 8-band parametric & dynamic equalizer with sidechain modulation\n- 4-band phase-compensated Linkwitz-Riley crossover flat to 0.003 dB\n- Multiband dynamics processor with downward compression and auto-makeup\n- Harmonic exciter with 4x/8x oversampled Tape, Tube, and Warm saturation\n- Microdynamics transient and sustain envelope shaper\n- Stereo imager with Haas stereoizer and 100% mono cancellation guarantee\n- Lookahead true-peak limiter with 4x polyphase inter-sample detection\n- ITU-R BS.1770-4 & EBU R128 loudness metering (Integrated, Short-Term, Momentary LUFS, and LRA)\n- 4096-point real-time FFT spectrum analyzer with octave smoothing\n- Level-matched reference track player with click-free A/B crossfading\n- Intelligent mastering assistant with streaming, club, pop, and acoustic targets\n\nUltra-low CPU usage and zero background licensing daemons."
+  }
+}

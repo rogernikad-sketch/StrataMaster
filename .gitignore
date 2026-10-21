@@ -1,0 +1,43 @@
+# CMake & Build Artifacts
+build/
+bin/
+lib/
+out/
+CMakeScripts/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.dir/
+
+# Visual Studio / MSVC
+.vs/
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.sln
+*.vcxproj*
+!CMakeLists.txt
+Debug/
+Release/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+
+# JUCE generated artifacts
+*.vst3
+*.component
+*.aaxplugin
+*.app
+JuceLibraryCode/
+
+# OS specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test output & temporary audio
+*.wav.tmp
+tests/test_output/

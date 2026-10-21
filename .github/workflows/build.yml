@@ -1,0 +1,50 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    name: Windows MSVC (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build All Targets (VST3 & Standalone)
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Run Unit Tests
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+
+  build-macos:
+    name: macOS AppleClang (Universal)
+    runs-on: macos-14
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build All Targets
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Run Unit Tests
+        run: |
+          ctest --test-dir build -C Release --output-on-failure

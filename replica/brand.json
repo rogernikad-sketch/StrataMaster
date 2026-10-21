@@ -1,0 +1,32 @@
+{
+  "name": "StrataMaster",
+  "company": "StrataAudio",
+  "product": "StrataMaster Professional Mastering Suite",
+  "avoid": [
+    "iZotope",
+    "Ozone",
+    "Ozone 11",
+    "Ozone 10",
+    "Maximizer",
+    "Neutron",
+    "Nectar",
+    "Music Production Suite"
+  ],
+  "domains": [
+    "izotope.com"
+  ],
+  "colors": {
+    "avoid": [
+      "#006BFF",
+      "#2B303A"
+    ],
+    "brand": {
+      "bgDark": "#0B0E14",
+      "panelBg": "#141923",
+      "accentCyan": "#00E5FF",
+      "accentGold": "#FFB300",
+      "textLight": "#F0F4F8",
+      "textDim": "#8A99AD"
+    }
+  }
+}
