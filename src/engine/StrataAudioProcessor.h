@@ -1,12 +1,15 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "../dsp/StereoProcessor.h"
 #include "../dsp/DynamicEqualizer.h"
 #include "../dsp/MultibandDynamics.h"
+#include "../dsp/CrossoverFilterbank.h"
 #include "../dsp/Saturator.h"
 #include "../dsp/TransientProcessor.h"
 #include "../dsp/TruePeakLimiter.h"
+#include "../dsp/MaseratiProcessor.h"
 #include "../dsp/common/SmoothedValue.h"
 #include "../analysis/CorrelationMeter.h"
 #include "../analysis/BS1770LoudnessMeter.h"
@@ -63,6 +66,10 @@ public:
     [[nodiscard]] dsp::Saturator& getSaturator() noexcept { return saturator_; }
     [[nodiscard]] dsp::TransientProcessor& getTransientProcessor() noexcept { return transientProcessor_; }
     [[nodiscard]] dsp::TruePeakLimiter& getTruePeakLimiter() noexcept { return truePeakLimiter_; }
+    [[nodiscard]] dsp::MaseratiProcessor& getMaseratiProcessor() noexcept { return maseratiProcessor_; }
+
+    static constexpr size_t LISSAJOUS_SAMPLES = 256;
+    void getLissajousPoints(std::array<std::pair<float, float>, LISSAJOUS_SAMPLES>& dest) const noexcept;
 
     void getMeterLevels(float& inL, float& inR, float& outL, float& outR) const noexcept {
         inL = inputPeakL_.load(std::memory_order_relaxed);
@@ -70,6 +77,15 @@ public:
         outL = outputPeakL_.load(std::memory_order_relaxed);
         outR = outputPeakR_.load(std::memory_order_relaxed);
     }
+
+    // Audition track and test signal playback (for Standalone and Auditioning)
+    bool loadAuditionAudio(const juce::File& file);
+    void setAuditionPlaying(bool playing) noexcept { auditionPlaying_.store(playing, std::memory_order_relaxed); }
+    [[nodiscard]] bool isAuditionPlaying() const noexcept { return auditionPlaying_.load(std::memory_order_relaxed); }
+    void setAuditionTestTone(int tone) noexcept { auditionTestTone_.store(tone, std::memory_order_relaxed); }
+    [[nodiscard]] int getAuditionTestTone() const noexcept { return auditionTestTone_.load(std::memory_order_relaxed); }
+    [[nodiscard]] bool hasAuditionTrack() const noexcept { return auditionBuffer_.getNumSamples() > 0; }
+    [[nodiscard]] juce::String getAuditionFileName() const { return auditionFileName_; }
 
 private:
     void updateEQParametersFromState() noexcept;
@@ -110,6 +126,12 @@ private:
     std::atomic<float>* limiterThresholdParam_{nullptr};
     std::atomic<float>* limiterReleaseParam_{nullptr};
     std::atomic<float>* limiterLookaheadParam_{nullptr};
+
+    // Maserati Analog Tone Processor parameter pointers
+    std::atomic<float>* maseratiBypassParam_{nullptr};
+    std::atomic<float>* maseratiBassParam_{nullptr};
+    std::atomic<float>* maseratiTrebleParam_{nullptr};
+    std::atomic<float>* maseratiSensitivityParam_{nullptr};
 
     // Crossover split parameter pointers
     std::atomic<float>* crossoverSplit1Param_{nullptr};
@@ -170,9 +192,15 @@ private:
     dsp::StereoProcessor stereoProcessor_;
     dsp::DynamicEqualizer dynamicEqualizer_;
     dsp::MultibandDynamics multibandDynamics_;
+    dsp::CrossoverFilterbank exciterCrossover_;
+    dsp::CrossoverFilterbank transientCrossover_;
     dsp::Saturator saturator_;
     dsp::TransientProcessor transientProcessor_;
     dsp::TruePeakLimiter truePeakLimiter_;
+    dsp::MaseratiProcessor maseratiProcessor_;
+    mutable std::array<std::atomic<float>, LISSAJOUS_SAMPLES> lissajousL_{};
+    mutable std::array<std::atomic<float>, LISSAJOUS_SAMPLES> lissajousR_{};
+    size_t lissajousWritePos_{0};
     analysis::CorrelationMeter correlationMeter_;
     analysis::BS1770LoudnessMeter bs1770Meter_;
     analysis::TruePeakMeter truePeakMeter_;
@@ -181,6 +209,12 @@ private:
     PresetManager presetManager_;
     ReferencePlayer referencePlayer_;
     assistant::AutoMasterEngine autoMasterEngine_;
+
+    // Pre-allocated Multiband Scratch Buffers (Zero heap allocations in processBlock)
+    std::array<std::vector<float>, dsp::NUM_CROSSOVER_BANDS> exciterBandBuffersL_;
+    std::array<std::vector<float>, dsp::NUM_CROSSOVER_BANDS> exciterBandBuffersR_;
+    std::array<std::vector<float>, dsp::NUM_CROSSOVER_BANDS> transientBandBuffersL_;
+    std::array<std::vector<float>, dsp::NUM_CROSSOVER_BANDS> transientBandBuffersR_;
 
     // Meter levels
     std::atomic<float> inputPeakL_{0.0f};
@@ -191,6 +225,15 @@ private:
     // Cached latency-affecting parameter states
     int lastOversamplingIdx_{ -1 };
     float lastLookaheadMs_{ -1.0f };
+
+    // Audition track and test signal state
+    juce::AudioFormatManager formatManager_;
+    juce::AudioBuffer<float> auditionBuffer_;
+    juce::String auditionFileName_;
+    std::atomic<bool> auditionPlaying_{ false };
+    std::atomic<int> auditionTestTone_{ 0 };
+    std::atomic<int64_t> auditionPlayhead_{ 0 };
+    std::atomic<bool> auditionLoop_{ true };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StrataAudioProcessor)
 };

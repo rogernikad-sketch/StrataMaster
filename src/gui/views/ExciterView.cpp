@@ -26,11 +26,11 @@ ExciterView::ExciterView(juce::AudioProcessorValueTreeState& apvts)
     bandEnableButton_.setColour(juce::ToggleButton::textColourId, StrataLookAndFeel::textLight);
     addAndMakeVisible(bandEnableButton_);
 
-    // Mode Box
-    modeBox_.addItem("Warm (Even)", 1);
-    modeBox_.addItem("Tape (Odd)", 2);
-    modeBox_.addItem("Tube (Triode)", 3);
-    modeBox_.addItem("Retro (Vintage)", 4);
+    // Mode Box (Exact 1:1 mapping with SaturationMode: Tape, Tube, Warm, Retro)
+    modeBox_.addItem("Tape (Odd Harmonics)", 1);
+    modeBox_.addItem("Tube (Triode Even/Odd)", 2);
+    modeBox_.addItem("Warm (Even Harmonics)", 3);
+    modeBox_.addItem("Retro (Transistor Warmth)", 4);
     modeBox_.setColour(juce::ComboBox::backgroundColourId, StrataLookAndFeel::panelBg);
     modeBox_.setColour(juce::ComboBox::textColourId, StrataLookAndFeel::textLight);
     addAndMakeVisible(modeBox_);

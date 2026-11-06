@@ -13,7 +13,8 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
       exciterView_(processor.getAPVTS()),
       imagerView_(processor.getAPVTS()),
       maximizerView_(processor.getAPVTS()),
-      assistantView_(processor.getAPVTS(), processor.getAutoMasterEngine()) {
+      maseratiView_(processor.getAPVTS()),
+      assistantView_(processor.getAPVTS(), processor.getAutoMasterEngine(), processor.getReferencePlayer()) {
 
     setLookAndFeel(&lookAndFeel_);
 
@@ -46,6 +47,56 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
     nextPresetBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::textLight);
     nextPresetBtn_.onClick = [this]() { selectNextPreset(); };
     addAndMakeVisible(nextPresetBtn_);
+
+    // Audition Track & Test Tone Generators (for Standalone and Auditioning)
+    loadAudioBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
+    loadAudioBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::accentCyan);
+    loadAudioBtn_.onClick = [this]() {
+        fileChooser_ = std::make_unique<juce::FileChooser>(
+            "Select Audio File for Mastering Audition...",
+            juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+            "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+
+        auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+        fileChooser_->launchAsync(flags, [this](const juce::FileChooser& fc) {
+            auto result = fc.getResult();
+            if (result.existsAsFile()) {
+                processor_.loadAuditionAudio(result);
+                processor_.getReferencePlayer().loadAudioFile(result);
+                loadAudioBtn_.setButtonText(result.getFileName().substring(0, 10));
+                auditionPlayBtn_.setButtonText("AUDITION: ON");
+                auditionPlayBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::accentCyan.darker(0.6f));
+            }
+        });
+    };
+    addAndMakeVisible(loadAudioBtn_);
+
+    auditionPlayBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
+    auditionPlayBtn_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::textLight);
+    auditionPlayBtn_.onClick = [this]() {
+        const bool playing = !processor_.isAuditionPlaying();
+        processor_.setAuditionPlaying(playing);
+        if (playing) {
+            auditionPlayBtn_.setButtonText("AUDITION: ON");
+            auditionPlayBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::accentCyan.darker(0.6f));
+        } else {
+            auditionPlayBtn_.setButtonText("AUDITION: OFF");
+            auditionPlayBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg);
+        }
+    };
+    addAndMakeVisible(auditionPlayBtn_);
+
+    testToneBox_.addItem("Host Input", 1);
+    testToneBox_.addItem("Pink Noise", 2);
+    testToneBox_.addItem("1kHz Sine", 3);
+    testToneBox_.setSelectedId(1, juce::dontSendNotification);
+    testToneBox_.setColour(juce::ComboBox::backgroundColourId, StrataLookAndFeel::panelBg);
+    testToneBox_.setColour(juce::ComboBox::textColourId, StrataLookAndFeel::textLight);
+    testToneBox_.onChange = [this]() {
+        const int id = testToneBox_.getSelectedId();
+        processor_.setAuditionTestTone(id - 1);
+    };
+    addAndMakeVisible(testToneBox_);
 
     // 3. Master Assistant Header Trigger
     assistantHeaderBtn_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg.brighter(0.12f));
@@ -97,6 +148,7 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
     addChildComponent(exciterView_);
     addChildComponent(imagerView_);
     addChildComponent(maximizerView_);
+    addChildComponent(maseratiView_);
     addChildComponent(assistantView_);
 
     assistantView_.onMasterApplied = [this]() {
@@ -122,10 +174,31 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
 
     // Resizable Window Support
     setResizable(true, true);
-    setResizeLimits(960, 580, 1600, 1000);
-    setSize(1040, 640);
+    setResizeLimits(1000, 620, 1680, 1050);
+    setSize(1120, 700);
 
-    showModule(ModuleID::Equalizer);
+    const auto cmd = juce::JUCEApplicationBase::getCommandLineParameters();
+    if (cmd.containsIgnoreCase("dynamics")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Dynamics);
+        showModule(ModuleID::Dynamics);
+    } else if (cmd.containsIgnoreCase("exciter")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Exciter);
+        showModule(ModuleID::Exciter);
+    } else if (cmd.containsIgnoreCase("imager")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Imager);
+        showModule(ModuleID::Imager);
+    } else if (cmd.containsIgnoreCase("maserati")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Maserati);
+        showModule(ModuleID::Maserati);
+    } else if (cmd.containsIgnoreCase("maximizer")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Maximizer);
+        showModule(ModuleID::Maximizer);
+    } else if (cmd.containsIgnoreCase("assistant")) {
+        moduleRackBar_.setSelectedModule(ModuleID::Assistant);
+        showModule(ModuleID::Assistant);
+    } else {
+        showModule(ModuleID::Equalizer);
+    }
     startTimerHz(60);
 }
 
@@ -168,6 +241,7 @@ void StrataAudioEditor::showModule(ModuleID id) {
     exciterView_.setVisible(id == ModuleID::Exciter);
     imagerView_.setVisible(id == ModuleID::Imager);
     maximizerView_.setVisible(id == ModuleID::Maximizer);
+    maseratiView_.setVisible(id == ModuleID::Maserati);
     assistantView_.setVisible(id == ModuleID::Assistant);
 
     resized();
@@ -192,7 +266,14 @@ void StrataAudioEditor::timerCallback() {
     }
 
     if (imagerView_.isVisible()) {
+        std::array<std::pair<float, float>, engine::StrataAudioProcessor::LISSAJOUS_SAMPLES> lissPoints;
+        processor_.getLissajousPoints(lissPoints);
+        imagerView_.updateLissajous(lissPoints);
         imagerView_.setCorrelation(correlationValue_);
+    }
+
+    if (maseratiView_.isVisible()) {
+        maseratiView_.updateActivity(processor_.getMaseratiProcessor().getSensitivityActivity());
     }
 
     // 3. Equalizer 60 FPS Spectrum
@@ -252,21 +333,29 @@ void StrataAudioEditor::resized() {
     auto bounds = getLocalBounds();
 
     // 1. Top Header Bar (44px)
-    auto header = bounds.removeFromTop(44).reduced(10, 6);
-    titleLabel_.setBounds(header.removeFromLeft(150));
-    prevPresetBtn_.setBounds(header.removeFromLeft(24));
+    auto header = bounds.removeFromTop(44).reduced(8, 6);
+    titleLabel_.setBounds(header.removeFromLeft(125));
+    prevPresetBtn_.setBounds(header.removeFromLeft(20));
     header.removeFromLeft(2);
-    presetBox_.setBounds(header.removeFromLeft(160));
+    presetBox_.setBounds(header.removeFromLeft(130));
     header.removeFromLeft(2);
-    nextPresetBtn_.setBounds(header.removeFromLeft(24));
+    nextPresetBtn_.setBounds(header.removeFromLeft(20));
 
-    header.removeFromLeft(14);
-    assistantHeaderBtn_.setBounds(header.removeFromLeft(145));
+    header.removeFromLeft(10);
+    loadAudioBtn_.setBounds(header.removeFromLeft(75));
+    header.removeFromLeft(4);
+    auditionPlayBtn_.setBounds(header.removeFromLeft(85));
+    header.removeFromLeft(4);
+    testToneBox_.setBounds(header.removeFromLeft(95));
 
-    header.removeFromLeft(14);
-    abButton_.setBounds(header.removeFromLeft(130));
-    gainMatchButton_.setBounds(header.removeFromLeft(105));
-    bypassButton_.setBounds(header.removeFromRight(85));
+    header.removeFromLeft(10);
+    assistantHeaderBtn_.setBounds(header.removeFromLeft(135));
+
+    header.removeFromLeft(10);
+    abButton_.setBounds(header.removeFromLeft(95));
+    header.removeFromLeft(4);
+    gainMatchButton_.setBounds(header.removeFromLeft(85));
+    bypassButton_.setBounds(header.removeFromRight(75));
 
     // 2. Right Metering Strip (145px)
     auto right = bounds.removeFromRight(145).reduced(8, 8);
@@ -294,6 +383,7 @@ void StrataAudioEditor::resized() {
     exciterView_.setBounds(workspace);
     imagerView_.setBounds(workspace);
     maximizerView_.setBounds(workspace);
+    maseratiView_.setBounds(workspace);
     assistantView_.setBounds(workspace);
 }
 

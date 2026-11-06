@@ -2,6 +2,7 @@
 #include "../../engine/ParameterIDs.h"
 #include "../LookAndFeel.h"
 #include <cmath>
+#include <algorithm>
 
 namespace strata::gui {
 
@@ -49,6 +50,16 @@ ImagerView::ImagerView(juce::AudioProcessorValueTreeState& apvts)
 
 void ImagerView::setCorrelation(float correlation) {
     correlation_ = correlation;
+    smoothedCorrelation_ += 0.25f * (correlation_ - smoothedCorrelation_);
+}
+
+void ImagerView::updateLissajous(const std::array<std::pair<float, float>, 256>& points) {
+    lissajousPoints_ = points;
+    float peak = 0.0f;
+    for (const auto& pt : points) {
+        peak = std::max(peak, std::max(std::abs(pt.first), std::abs(pt.second)));
+    }
+    hasAudioActivity_ = (peak > 0.0001f);
     repaint();
 }
 
@@ -66,9 +77,10 @@ void ImagerView::paint(juce::Graphics& g) {
     const float radius = juce::jmin(visBounds.getWidth(), visBounds.getHeight()) * 0.42f;
 
     // Polar Grid Arcs (Stereo Field)
-    g.setColour(StrataLookAndFeel::borderSubtle.withAlpha(0.5f));
+    g.setColour(StrataLookAndFeel::borderSubtle.withAlpha(0.4f));
     g.drawEllipse(center.x - radius, center.y - radius, radius * 2.0f, radius * 2.0f, 1.0f);
-    g.drawEllipse(center.x - radius * 0.5f, center.y - radius * 0.5f, radius, radius, 1.0f);
+    g.drawEllipse(center.x - radius * 0.66f, center.y - radius * 0.66f, radius * 1.32f, radius * 1.32f, 1.0f);
+    g.drawEllipse(center.x - radius * 0.33f, center.y - radius * 0.33f, radius * 0.66f, radius * 0.66f, 1.0f);
 
     // Diagonal 45-degree axis lines (L and R)
     const float d = radius * 0.7071f;
@@ -86,31 +98,83 @@ void ImagerView::paint(juce::Graphics& g) {
     g.drawText("+S", static_cast<int>(center.x + radius + 4), static_cast<int>(center.y - 8), 24, 16, juce::Justification::centred);
     g.drawText("-S", static_cast<int>(center.x - radius - 26), static_cast<int>(center.y - 8), 24, 16, juce::Justification::centred);
 
+    // =========================================================================
+    // Real-Time Animated Lissajous Vectorscope Stereo Cloud
+    // =========================================================================
+    if (hasAudioActivity_) {
+        // Draw real-time audio points in rotated Mid/Side coordinates
+        constexpr float invSqrt2 = 0.70710678f;
+        const float maxScale = radius * 1.25f;
+
+        juce::Path lissPath;
+        bool started = false;
+
+        for (size_t i = 0; i < lissajousPoints_.size(); ++i) {
+            const float l = lissajousPoints_[i].first;
+            const float r = lissajousPoints_[i].second;
+
+            // Rotate into Mid (vertical Y) and Side (horizontal X)
+            const float mid  = (l + r) * invSqrt2;
+            const float side = (r - l) * invSqrt2;
+
+            const float px = center.x + std::clamp(side * maxScale, -radius, radius);
+            const float py = center.y - std::clamp(mid  * maxScale, -radius, radius);
+
+            // Glowing cyan dots
+            g.setColour(StrataLookAndFeel::accentCyan.withAlpha(0.6f));
+            g.fillEllipse(px - 1.5f, py - 1.5f, 3.0f, 3.0f);
+
+            if (!started) {
+                lissPath.startNewSubPath(px, py);
+                started = true;
+            } else {
+                lissPath.lineTo(px, py);
+            }
+        }
+
+        // Faint ribbon connection line for smooth visual trail
+        g.setColour(StrataLookAndFeel::accentCyan.withAlpha(0.18f));
+        g.strokePath(lissPath, juce::PathStrokeType(1.2f));
+    } else {
+        // Subtle standby idle glow at center
+        g.setColour(StrataLookAndFeel::accentCyan.withAlpha(0.2f));
+        g.fillEllipse(center.x - 3.0f, center.y - 3.0f, 6.0f, 6.0f);
+    }
+
+    // =========================================================================
     // Correlation Meter Bar at bottom of visualizer
-    const float corrW = 240.0f;
-    const float corrH = 8.0f;
+    // =========================================================================
+    const float corrW = 260.0f;
+    const float corrH = 10.0f;
     const float corrX = center.x - corrW * 0.5f;
-    const float corrY = visBounds.getBottom() - 30.0f;
+    const float corrY = visBounds.getBottom() - 32.0f;
 
     g.setColour(juce::Colour(0xFF0F131C));
     g.fillRoundedRectangle(corrX, corrY, corrW, corrH, 4.0f);
     g.setColour(StrataLookAndFeel::borderSubtle);
     g.drawRoundedRectangle(corrX, corrY, corrW, corrH, 4.0f, 1.0f);
 
-    // Indicator Dot
-    const float normCorr = (correlation_ + 1.0f) * 0.5f;
+    // Center divider mark (0.0 correlation)
+    g.setColour(juce::Colour(0x40FFFFFF));
+    g.drawVerticalLine(static_cast<int>(corrX + corrW * 0.5f), corrY - 2.0f, corrY + corrH + 2.0f);
+
+    // Indicator Dot / Needle
+    const float normCorr = std::clamp((smoothedCorrelation_ + 1.0f) * 0.5f, 0.0f, 1.0f);
     const float dotX = corrX + normCorr * corrW;
-    const juce::Colour corrCol = (correlation_ >= 0.2f) ? StrataLookAndFeel::accentCyan
-                               : (correlation_ >= -0.2f) ? StrataLookAndFeel::accentGold
+    const juce::Colour corrCol = (smoothedCorrelation_ >= 0.2f) ? StrataLookAndFeel::accentCyan
+                               : (smoothedCorrelation_ >= -0.2f) ? StrataLookAndFeel::accentGold
                                : juce::Colours::red;
 
+    // Glowing needle
+    g.setColour(corrCol.withAlpha(0.4f));
+    g.fillEllipse(dotX - 6.0f, corrY - 2.0f, 12.0f, corrH + 4.0f);
     g.setColour(corrCol);
-    g.fillEllipse(dotX - 4.0f, corrY - 3.0f, 8.0f, 14.0f);
+    g.fillEllipse(dotX - 3.5f, corrY - 1.0f, 7.0f, corrH + 2.0f);
 
-    g.setFont(juce::Font(11.0f, juce::Font::bold));
+    g.setFont(juce::Font(12.0f, juce::Font::bold));
     g.setColour(corrCol);
-    g.drawText(juce::String::formatted("CORRELATION: %+.2f", correlation_),
-               static_cast<int>(corrX), static_cast<int>(corrY - 20.0f), static_cast<int>(corrW), 16,
+    g.drawText(juce::String::formatted("PHASE CORRELATION: %+.2f", smoothedCorrelation_),
+               static_cast<int>(corrX), static_cast<int>(corrY - 22.0f), static_cast<int>(corrW), 18,
                juce::Justification::centred);
 
     // Bottom controls panel background
@@ -151,9 +215,10 @@ void ImagerView::resized() {
 
     bottom.removeFromLeft(20);
 
-    // Mode Box
+    // Stereo Mode selector
     auto modeArea = bottom.removeFromLeft(120);
-    stereoModeBox_.setBounds(modeArea.removeFromTop(26));
+    modeArea.removeFromTop(20);
+    stereoModeBox_.setBounds(modeArea.removeFromTop(30));
 }
 
 } // namespace strata::gui

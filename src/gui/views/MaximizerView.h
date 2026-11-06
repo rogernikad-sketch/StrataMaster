@@ -23,9 +23,7 @@ private:
     std::unique_ptr<Knob> thresholdKnob_;
     std::unique_ptr<Knob> ceilingKnob_;
     std::unique_ptr<Knob> releaseKnob_;
-
-    juce::ToggleButton lookaheadButton_{ "3ms LOOKAHEAD" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lookaheadAttachment_;
+    std::unique_ptr<Knob> lookaheadKnob_;
 
     juce::ToggleButton limiterBypassButton_{ "LIMITER BYPASS" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> limiterBypassAttachment_;

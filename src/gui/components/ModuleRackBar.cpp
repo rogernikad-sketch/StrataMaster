@@ -16,9 +16,63 @@ ModuleRackBar::ModuleRackBar(juce::AudioProcessorValueTreeState& apvts)
     setupTab(2, ModuleID::Exciter, "EXCITER", "EXC", param::ExciterBypass.data());
     setupTab(3, ModuleID::Imager, "IMAGER", "IMG", "");
     setupTab(4, ModuleID::Maximizer, "MAXIMIZER", "MAX", param::LimiterBypass.data());
-    setupTab(5, ModuleID::Assistant, "ASSISTANT", "AI", "");
+    setupTab(5, ModuleID::Maserati, "MASERATI", "MST", param::MaseratiBypass.data());
+    setupTab(6, ModuleID::Assistant, "ASSISTANT", "AI", "");
+
+    addModuleButton_.setButtonText("+ ADD MODULE");
+    addModuleButton_.setColour(juce::TextButton::buttonColourId, StrataLookAndFeel::panelBg.brighter(0.08f));
+    addModuleButton_.setColour(juce::TextButton::textColourOffId, StrataLookAndFeel::accentGold);
+    addModuleButton_.onClick = [this]() { showAddModuleMenu(); };
+    addAndMakeVisible(addModuleButton_);
 
     setSelectedModule(ModuleID::Equalizer);
+}
+
+void ModuleRackBar::showAddModuleMenu() {
+    juce::PopupMenu menu;
+    menu.addSectionHeader("INSERT MASTERING MODULE");
+
+    auto isParamBypassed = [this](const juce::String& paramId) -> bool {
+        if (auto* p = apvts_.getRawParameterValue(paramId)) {
+            return p->load() > 0.5f;
+        }
+        return false;
+    };
+
+    auto toggleParam = [this](const juce::String& paramId) {
+        if (auto* p = apvts_.getParameter(paramId)) {
+            const float cur = p->getValue();
+            p->setValueNotifyingHost(cur > 0.5f ? 0.0f : 1.0f);
+        }
+    };
+
+    menu.addItem(1, "Dynamic Parametric EQ", true, !isParamBypassed(juce::String(param::EQBypass.data())));
+    menu.addItem(2, "Multiband Dynamics Compressor", true, !isParamBypassed(juce::String(param::DynamicsBypass.data())));
+    menu.addItem(3, "Harmonic Exciter & Tape Saturation", true, !isParamBypassed(juce::String(param::ExciterBypass.data())));
+    menu.addItem(4, "Stereo Imager & Mono-Maker", true, true);
+    menu.addItem(5, "IRC True-Peak Maximizer", true, !isParamBypassed(juce::String(param::LimiterBypass.data())));
+    menu.addItem(6, "Maserati Analog Tone Processor", true, !isParamBypassed(juce::String(param::MaseratiBypass.data())));
+    menu.addSeparator();
+    menu.addSectionHeader("ANALOG INSERTS & PROCESSORS");
+    menu.addItem(7, "Pre-Limiter Soft Clipper", true, isParamBypassed(juce::String(param::ClipperEnable.data())));
+    menu.addItem(8, "Stereoizer Spatial Decorrelation", true, isParamBypassed(juce::String(param::StereoStereoizerEnable.data())));
+    menu.addItem(9, "Multiband Transient Processor", true, !isParamBypassed(juce::String(param::TransientBypass.data())));
+
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&addModuleButton_),
+        [this, toggleParam](int result) {
+            switch (result) {
+                case 1: setSelectedModule(ModuleID::Equalizer); if (onModuleSelected) onModuleSelected(ModuleID::Equalizer); break;
+                case 2: setSelectedModule(ModuleID::Dynamics); if (onModuleSelected) onModuleSelected(ModuleID::Dynamics); break;
+                case 3: setSelectedModule(ModuleID::Exciter); if (onModuleSelected) onModuleSelected(ModuleID::Exciter); break;
+                case 4: setSelectedModule(ModuleID::Imager); if (onModuleSelected) onModuleSelected(ModuleID::Imager); break;
+                case 5: setSelectedModule(ModuleID::Maximizer); if (onModuleSelected) onModuleSelected(ModuleID::Maximizer); break;
+                case 6: setSelectedModule(ModuleID::Maserati); if (onModuleSelected) onModuleSelected(ModuleID::Maserati); break;
+                case 7: toggleParam(juce::String(param::ClipperEnable.data())); break;
+                case 8: toggleParam(juce::String(param::StereoStereoizerEnable.data())); break;
+                case 9: toggleParam(juce::String(param::TransientBypass.data())); break;
+                default: break;
+            }
+        });
 }
 
 void ModuleRackBar::setupTab(size_t index, ModuleID id, const juce::String& name, const juce::String& acronym, const juce::String& bypassParam) {
@@ -86,6 +140,12 @@ void ModuleRackBar::paint(juce::Graphics& g) {
 
 void ModuleRackBar::resized() {
     auto bounds = getLocalBounds().reduced(8, 3);
+    
+    // Add Module Button on the right
+    auto addBounds = bounds.removeFromRight(115);
+    bounds.removeFromRight(8);
+    addModuleButton_.setBounds(addBounds.reduced(0, 2));
+
     const int numTabs = static_cast<int>(tabs_.size());
     if (numTabs == 0) return;
 
@@ -100,7 +160,7 @@ void ModuleRackBar::resized() {
         bounds.removeFromLeft(spacing);
 
         if (tab.bypassButton.isVisible()) {
-            tab.bypassButton.setBounds(tabBounds.removeFromLeft(22).reduced(2));
+            tab.bypassButton.setBounds(tabBounds.removeFromLeft(20).reduced(1));
         }
         tab.selectButton.setBounds(tabBounds);
     }

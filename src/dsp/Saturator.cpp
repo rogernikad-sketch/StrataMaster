@@ -14,9 +14,12 @@ void Saturator::prepare(double sampleRate, size_t maxBlockSize, OversamplingFact
     sampleRate_ = sampleRate;
     maxBlockSize_ = maxBlockSize;
 
-    oversampler_.prepare(sampleRate, maxBlockSize, factor);
+    widebandOversampler_.prepare(sampleRate, maxBlockSize, factor);
+    for (size_t b = 0; b < NUM_CROSSOVER_BANDS; ++b) {
+        bandOversamplers_[b].prepare(sampleRate, maxBlockSize, factor);
+    }
 
-    const double oversampledRate = oversampler_.getOversampledRate();
+    const double oversampledRate = widebandOversampler_.getOversampledRate();
     for (size_t b = 0; b < NUM_CROSSOVER_BANDS; ++b) {
         dcBlockers_[b][0].prepare(oversampledRate);
         dcBlockers_[b][1].prepare(oversampledRate);
@@ -31,8 +34,9 @@ void Saturator::prepare(double sampleRate, size_t maxBlockSize, OversamplingFact
 }
 
 void Saturator::reset() noexcept {
-    oversampler_.reset();
+    widebandOversampler_.reset();
     for (size_t b = 0; b < NUM_CROSSOVER_BANDS; ++b) {
+        bandOversamplers_[b].reset();
         dcBlockers_[b][0].reset();
         dcBlockers_[b][1].reset();
     }
@@ -41,8 +45,12 @@ void Saturator::reset() noexcept {
 }
 
 void Saturator::setOversamplingFactor(OversamplingFactor factor) {
-    oversampler_.setFactor(factor);
-    const double oversampledRate = oversampler_.getOversampledRate();
+    widebandOversampler_.setFactor(factor);
+    for (size_t b = 0; b < NUM_CROSSOVER_BANDS; ++b) {
+        bandOversamplers_[b].setFactor(factor);
+    }
+
+    const double oversampledRate = widebandOversampler_.getOversampledRate();
     for (size_t b = 0; b < NUM_CROSSOVER_BANDS; ++b) {
         dcBlockers_[b][0].prepare(oversampledRate);
         dcBlockers_[b][1].prepare(oversampledRate);
@@ -63,10 +71,10 @@ const BandExciterSettings& Saturator::getBandSettings(size_t band) const noexcep
 }
 
 float Saturator::shapeTape(float x, float drive) noexcept {
-    const float k = 1.0f + 15.0f * drive;
+    const float k = 1.0f + 10.0f * drive;
     const float u = x * k;
     const float y = std::tanh(u);
-    const float comp = 1.0f / std::sqrt(1.0f + 0.6f * (k - 1.0f));
+    const float comp = 1.0f / std::sqrt(1.0f + 0.5f * (k - 1.0f));
     return y * comp;
 }
 
@@ -109,7 +117,7 @@ float Saturator::shapeRetro(float x, float drive) noexcept {
 
 void Saturator::processOversampledBand(float* left, float* right, size_t numSamples,
                                       SaturationMode mode, float drive, float mix,
-                                      size_t bandIdx) noexcept {
+                                      size_t bandIdx, Oversampler& os) noexcept {
     if (drive <= 0.001f && mix <= 0.001f) {
         // Flat wire, no-op
         return;
@@ -119,7 +127,7 @@ void Saturator::processOversampledBand(float* left, float* right, size_t numSamp
     float* const* oversampledOutputs = nullptr;
     size_t numOversampled = 0;
 
-    oversampler_.upsample(inChannels, numSamples, oversampledOutputs, numOversampled);
+    os.upsample(inChannels, numSamples, oversampledOutputs, numOversampled);
 
     auto* overL = oversampledOutputs[0];
     auto* overR = oversampledOutputs[1];
@@ -160,12 +168,12 @@ void Saturator::processOversampledBand(float* left, float* right, size_t numSamp
 
     // Downsample wet saturated signal
     float* outChannels[2] = { left, right };
-    oversampler_.downsample(outChannels, numSamples);
+    os.downsample(outChannels, numSamples);
 
     // Apply delay-compensated dry/wet blend
     if (mix < 0.999f) {
-        const float* dryL = oversampler_.getDryDelayedChannel(0);
-        const float* dryR = oversampler_.getDryDelayedChannel(1);
+        const float* dryL = os.getDryDelayedChannel(0);
+        const float* dryR = os.getDryDelayedChannel(1);
         const float wetGain = mix;
         const float dryGain = 1.0f - mix;
 
@@ -178,7 +186,7 @@ void Saturator::processOversampledBand(float* left, float* right, size_t numSamp
 
 void Saturator::processStereo(float* left, float* right, size_t numSamples,
                               SaturationMode mode, float drive, float mix) noexcept {
-    processOversampledBand(left, right, numSamples, mode, drive, mix, NUM_CROSSOVER_BANDS);
+    processOversampledBand(left, right, numSamples, mode, drive, mix, NUM_CROSSOVER_BANDS, widebandOversampler_);
 }
 
 void Saturator::processMultiband(float* bandBuffers[NUM_CROSSOVER_BANDS][2], size_t numSamples) noexcept {
@@ -189,7 +197,7 @@ void Saturator::processMultiband(float* bandBuffers[NUM_CROSSOVER_BANDS][2], siz
         }
 
         processOversampledBand(bandBuffers[b][0], bandBuffers[b][1], numSamples,
-                               s.mode, s.drive, s.mix, b);
+                               s.mode, s.drive, s.mix, b, bandOversamplers_[b]);
     }
 }
 

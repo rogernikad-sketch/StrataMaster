@@ -3,6 +3,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../components/Knob.h"
+#include <array>
+#include <vector>
 
 namespace strata::gui {
 
@@ -15,6 +17,7 @@ public:
     void resized() override;
 
     void setCorrelation(float correlation);
+    void updateLissajous(const std::array<std::pair<float, float>, 256>& points);
 
 private:
     juce::AudioProcessorValueTreeState& apvts_;
@@ -40,6 +43,11 @@ private:
 
     // Phase Correlation Readout
     float correlation_{ 1.0f };
+    float smoothedCorrelation_{ 1.0f };
+
+    // Real-time Lissajous Vectorscope Display points
+    std::array<std::pair<float, float>, 256> lissajousPoints_{};
+    bool hasAudioActivity_{ false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ImagerView)
 };

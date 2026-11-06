@@ -21,11 +21,9 @@ MaximizerView::MaximizerView(juce::AudioProcessorValueTreeState& apvts)
     releaseKnob_ = std::make_unique<Knob>(apvts_, param::LimiterRelease.data(), "RELEASE");
     addAndMakeVisible(*releaseKnob_);
 
-    // Lookahead
-    lookaheadButton_.setColour(juce::ToggleButton::textColourId, StrataLookAndFeel::accentCyan);
-    lookaheadAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        apvts_, param::LimiterLookahead.data(), lookaheadButton_);
-    addAndMakeVisible(lookaheadButton_);
+    // Lookahead (0.5 to 10.0 ms)
+    lookaheadKnob_ = std::make_unique<Knob>(apvts_, param::LimiterLookahead.data(), "LOOKAHEAD");
+    addAndMakeVisible(*lookaheadKnob_);
 
     // Limiter Bypass
     limiterBypassButton_.setColour(juce::ToggleButton::textColourId, StrataLookAndFeel::textDim);
@@ -123,19 +121,19 @@ void MaximizerView::resized() {
     const int knobW = 85;
     const int knobH = 100;
 
-    // Threshold, Ceiling, Release
+    // Threshold, Ceiling, Release, Lookahead
     thresholdKnob_->setBounds(bottom.removeFromLeft(knobW).withHeight(knobH));
-    bottom.removeFromLeft(12);
+    bottom.removeFromLeft(10);
     ceilingKnob_->setBounds(bottom.removeFromLeft(knobW).withHeight(knobH));
-    bottom.removeFromLeft(12);
+    bottom.removeFromLeft(10);
     releaseKnob_->setBounds(bottom.removeFromLeft(knobW).withHeight(knobH));
+    bottom.removeFromLeft(10);
+    lookaheadKnob_->setBounds(bottom.removeFromLeft(knobW).withHeight(knobH));
 
-    bottom.removeFromLeft(20);
+    bottom.removeFromLeft(16);
 
-    // Lookahead & Bypass
-    auto optArea = bottom.removeFromLeft(130);
-    lookaheadButton_.setBounds(optArea.removeFromTop(26));
-    optArea.removeFromTop(8);
+    // Bypass
+    auto optArea = bottom.removeFromLeft(120);
     limiterBypassButton_.setBounds(optArea.removeFromTop(26));
 
     bottom.removeFromLeft(20);

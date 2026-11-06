@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "../src/engine/StrataAudioProcessor.h"
 #include "../src/engine/ParameterIDs.h"
@@ -179,6 +180,88 @@ TEST_CASE("StrataAudioProcessor bypass toggle maintains continuous audio output"
         feedAndProcess(false);
     }
     CHECK(buffer.getMagnitude(0, 0, blockSize) > 0.05f);
+
+    processor.releaseResources();
+}
+
+TEST_CASE("StrataAudioProcessor stereo width smoother responds within 2 blocks", "[engine][stereo]") {
+    strata::engine::StrataAudioProcessor processor;
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    processor.prepareToPlay(sampleRate, blockSize);
+
+    juce::AudioBuffer<float> buffer(2, blockSize);
+    juce::MidiBuffer midiMessages;
+
+    auto& apvts = *const_cast<juce::AudioProcessorValueTreeState*>(&processor.getAPVTS());
+    auto* widthParam = apvts.getParameter(juce::String(strata::param::StereoWidth.data()));
+    REQUIRE(widthParam != nullptr);
+
+    // Feed stereo audio: Left has signal, Right has 0
+    auto feedStereo = [&]() {
+        for (int i = 0; i < blockSize; ++i) {
+            buffer.setSample(0, i, 0.5f);
+            buffer.setSample(1, i, 0.0f);
+        }
+        processor.processBlock(buffer, midiMessages);
+    };
+
+    // Set width to 0.0 (Mono)
+    widthParam->setValueNotifyingHost(widthParam->convertTo0to1(0.0f));
+
+    // Process 3 blocks
+    for (int b = 0; b < 3; ++b) {
+        feedStereo();
+    }
+
+    // In mono, Left and Right must be virtually identical
+    const float lastL = buffer.getSample(0, blockSize - 1);
+    const float lastR = buffer.getSample(1, blockSize - 1);
+    REQUIRE_THAT(lastL, Catch::Matchers::WithinAbs(lastR, 0.01f));
+
+    processor.releaseResources();
+}
+
+TEST_CASE("StrataAudioProcessor genre defaults correctly configure all mastering stages", "[engine][genres]") {
+    strata::engine::StrataAudioProcessor processor;
+    constexpr double sampleRate = 44100.0;
+    constexpr int blockSize = 512;
+
+    processor.prepareToPlay(sampleRate, blockSize);
+    auto& apvts = *const_cast<juce::AudioProcessorValueTreeState*>(&processor.getAPVTS());
+    auto& engine = processor.getAutoMasterEngine();
+
+    // 1. Test Hip-Hop Genre Defaults
+    engine.setTargetGenre(strata::assistant::GenreProfile::HipHop);
+    engine.applyGenreDefaults(apvts);
+
+    auto* mmFreq = apvts.getRawParameterValue(strata::param::StereoMonoMakerFreq.data());
+    auto* limCeil = apvts.getRawParameterValue(strata::param::LimiterCeiling.data());
+    auto* excDrive0 = apvts.getRawParameterValue(strata::param::getExciterBandDriveID(0));
+
+    REQUIRE(mmFreq != nullptr);
+    REQUIRE(limCeil != nullptr);
+    REQUIRE(excDrive0 != nullptr);
+
+    REQUIRE(mmFreq->load() == Catch::Approx(110.0f));
+    REQUIRE(limCeil->load() == Catch::Approx(-0.2f));
+    REQUIRE(excDrive0->load() == Catch::Approx(25.0f));
+
+    // 2. Test Classical Genre Defaults
+    engine.setTargetGenre(strata::assistant::GenreProfile::Classical);
+    engine.applyGenreDefaults(apvts);
+
+    REQUIRE(mmFreq->load() == Catch::Approx(45.0f));
+    REQUIRE(limCeil->load() == Catch::Approx(-1.5f));
+    REQUIRE(excDrive0->load() == Catch::Approx(0.0f));
+
+    // 3. Test EDM Genre Defaults
+    engine.setTargetGenre(strata::assistant::GenreProfile::ClubEDM);
+    engine.applyGenreDefaults(apvts);
+
+    REQUIRE(mmFreq->load() == Catch::Approx(120.0f));
+    REQUIRE(limCeil->load() == Catch::Approx(-0.1f));
 
     processor.releaseResources();
 }

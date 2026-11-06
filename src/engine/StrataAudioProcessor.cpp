@@ -4,6 +4,8 @@
 #include "../dsp/common/DenormalGuard.h"
 #include "../dsp/common/DecibelUtils.h"
 #include "../gui/StrataAudioEditor.h"
+#include <cmath>
+#include <cstdlib>
 
 namespace strata::engine {
 
@@ -13,6 +15,8 @@ StrataAudioProcessor::StrataAudioProcessor()
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts_(*this, nullptr, "Parameters", ParameterLayout::createParameterLayout()),
       presetManager_(apvts_) {
+
+    formatManager_.registerBasicFormats();
 
     inputGainParam_       = apvts_.getRawParameterValue(param::InputGain.data());
     outputGainParam_      = apvts_.getRawParameterValue(param::OutputGain.data());
@@ -79,6 +83,59 @@ StrataAudioProcessor::StrataAudioProcessor()
     limiterLookaheadParam_ = apvts_.getRawParameterValue(param::LimiterLookahead.data());
 }
 
+bool StrataAudioProcessor::loadAuditionAudio(const juce::File& file) {
+    if (!file.existsAsFile()) {
+        return false;
+    }
+
+    std::unique_ptr<juce::AudioFormatReader> reader(formatManager_.createReaderFor(file));
+    if (!reader) {
+        return false;
+    }
+
+    const int numChannels = std::min(2, static_cast<int>(reader->numChannels));
+    const int64_t numSamples = static_cast<int64_t>(reader->lengthInSamples);
+    if (numSamples <= 0) {
+        return false;
+    }
+
+    juce::AudioBuffer<float> tempBuffer(2, static_cast<int>(numSamples));
+    if (numChannels == 1) {
+        reader->read(&tempBuffer, 0, static_cast<int>(numSamples), 0, true, false);
+        tempBuffer.copyFrom(1, 0, tempBuffer, 0, 0, static_cast<int>(numSamples));
+    } else {
+        reader->read(&tempBuffer, 0, static_cast<int>(numSamples), 0, true, true);
+    }
+
+    const double hostRate = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+    if (std::abs(reader->sampleRate - hostRate) < 1.0) {
+        auditionBuffer_ = std::move(tempBuffer);
+    } else {
+        const double ratio = reader->sampleRate / hostRate;
+        const int outLength = static_cast<int>(static_cast<double>(numSamples) / ratio);
+        juce::AudioBuffer<float> resampled(2, outLength);
+        const float* srcL = tempBuffer.getReadPointer(0);
+        const float* srcR = tempBuffer.getReadPointer(1);
+        float* dstL = resampled.getWritePointer(0);
+        float* dstR = resampled.getWritePointer(1);
+
+        for (int i = 0; i < outLength; ++i) {
+            const double srcPos = static_cast<double>(i) * ratio;
+            const int idx0 = static_cast<int>(srcPos);
+            const int idx1 = std::min(idx0 + 1, static_cast<int>(numSamples) - 1);
+            const float frac = static_cast<float>(srcPos - static_cast<double>(idx0));
+            dstL[i] = srcL[idx0] + frac * (srcL[idx1] - srcL[idx0]);
+            dstR[i] = srcR[idx0] + frac * (srcR[idx1] - srcR[idx0]);
+        }
+        auditionBuffer_ = std::move(resampled);
+    }
+
+    auditionFileName_ = file.getFileName();
+    auditionPlayhead_.store(0, std::memory_order_relaxed);
+    auditionPlaying_.store(true, std::memory_order_relaxed);
+    return true;
+}
+
 void StrataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     const float inGain = inputGainParam_ ? inputGainParam_->load(std::memory_order_relaxed) : 0.0f;
     const float outGain = outputGainParam_ ? outputGainParam_->load(std::memory_order_relaxed) : 0.0f;
@@ -94,6 +151,16 @@ void StrataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     stereoProcessor_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
     dynamicEqualizer_.prepare(sampleRate);
     multibandDynamics_.prepare(sampleRate);
+    exciterCrossover_.prepare(sampleRate);
+    transientCrossover_.prepare(sampleRate);
+
+    const size_t bufSize = std::max(static_cast<size_t>(samplesPerBlock), size_t{2048});
+    for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
+        exciterBandBuffersL_[b].assign(bufSize, 0.0f);
+        exciterBandBuffersR_[b].assign(bufSize, 0.0f);
+        transientBandBuffersL_[b].assign(bufSize, 0.0f);
+        transientBandBuffersR_[b].assign(bufSize, 0.0f);
+    }
 
     dsp::OversamplingFactor factor = dsp::OversamplingFactor::X4;
     lastOversamplingIdx_ = exciterOversamplingParam_ ? static_cast<int>(exciterOversamplingParam_->load(std::memory_order_relaxed)) : 2;
@@ -105,6 +172,7 @@ void StrataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
         default: factor = dsp::OversamplingFactor::X4;  break;
     }
     saturator_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock), factor);
+    maseratiProcessor_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
 
     transientProcessor_.prepare(sampleRate, static_cast<size_t>(samplesPerBlock));
 
@@ -130,7 +198,10 @@ void StrataAudioProcessor::releaseResources() {
     stereoProcessor_.reset();
     dynamicEqualizer_.reset();
     multibandDynamics_.reset();
+    exciterCrossover_.reset();
+    transientCrossover_.reset();
     saturator_.reset();
+    maseratiProcessor_.reset();
     transientProcessor_.reset();
     truePeakLimiter_.reset();
     correlationMeter_.reset();
@@ -149,7 +220,9 @@ bool StrataAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) co
     if (mainOutput != juce::AudioChannelSet::stereo()) {
         return false;
     }
-    return (mainInput == juce::AudioChannelSet::stereo());
+    return (mainInput == juce::AudioChannelSet::stereo() ||
+            mainInput == juce::AudioChannelSet::mono() ||
+            mainInput == juce::AudioChannelSet::disabled());
 }
 
 void StrataAudioProcessor::updateEQParametersFromState() noexcept {
@@ -181,6 +254,8 @@ void StrataAudioProcessor::updateDynamicsParametersFromState() noexcept {
         const float f2 = crossoverSplit2Param_->load(std::memory_order_relaxed);
         const float f3 = crossoverSplit3Param_->load(std::memory_order_relaxed);
         multibandDynamics_.setCrossoverFrequencies(f1, f2, f3);
+        exciterCrossover_.setCrossoverFrequencies(f1, f2, f3);
+        transientCrossover_.setCrossoverFrequencies(f1, f2, f3);
     }
 
     for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
@@ -316,8 +391,66 @@ void StrataAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         return;
     }
 
+    // Expand mono input to stereo if host provided mono input
+    if (getTotalNumInputChannels() == 1) {
+        buffer.copyFrom(1, 0, buffer.getReadPointer(0), numSamples);
+    }
+
     auto* leftChannel  = buffer.getWritePointer(0);
     auto* rightChannel = buffer.getWritePointer(1);
+
+    // Audition track playback or test tone injection if active
+    const bool isAuditionOn = auditionPlaying_.load(std::memory_order_relaxed);
+    const int testToneMode = auditionTestTone_.load(std::memory_order_relaxed);
+
+    if (isAuditionOn && auditionBuffer_.getNumSamples() > 0) {
+        const int totalAudition = auditionBuffer_.getNumSamples();
+        const float* srcL = auditionBuffer_.getReadPointer(0);
+        const float* srcR = (auditionBuffer_.getNumChannels() > 1) ? auditionBuffer_.getReadPointer(1) : srcL;
+        int64_t pos = auditionPlayhead_.load(std::memory_order_relaxed);
+
+        for (int i = 0; i < numSamples; ++i) {
+            if (pos >= totalAudition) {
+                if (auditionLoop_.load(std::memory_order_relaxed)) {
+                    pos = 0;
+                } else {
+                    break;
+                }
+            }
+            leftChannel[i]  += srcL[pos];
+            rightChannel[i] += srcR[pos];
+            ++pos;
+        }
+        auditionPlayhead_.store(pos, std::memory_order_relaxed);
+    } else if (testToneMode == 1) {
+        // Pink Noise (-18 dBFS calibration)
+        static float b0 = 0.0f, b1 = 0.0f, b2 = 0.0f, b3 = 0.0f, b4 = 0.0f, b5 = 0.0f, b6 = 0.0f;
+        for (int i = 0; i < numSamples; ++i) {
+            const float white = (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) * 2.0f - 1.0f) * 0.125f;
+            b0 = 0.99886f * b0 + white * 0.0555179f;
+            b1 = 0.99332f * b1 + white * 0.0750759f;
+            b2 = 0.96900f * b2 + white * 0.1538520f;
+            b3 = 0.86650f * b3 + white * 0.3104856f;
+            b4 = 0.55000f * b4 + white * 0.5329522f;
+            b5 = -0.7616f * b5 - white * 0.0168980f;
+            const float pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362f) * 0.12f;
+            b6 = white * 0.115926f;
+            leftChannel[i]  += pink;
+            rightChannel[i] += pink;
+        }
+    } else if (testToneMode == 2) {
+        // 1 kHz Sine (-18 dBFS calibration)
+        static double phase = 0.0;
+        const double phaseInc = 6.283185307179586 * 1000.0 / (getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
+        constexpr float amp = 0.125f; // ~ -18 dBFS
+        for (int i = 0; i < numSamples; ++i) {
+            const float s = amp * static_cast<float>(std::sin(phase));
+            phase += phaseInc;
+            if (phase >= 6.283185307179586) phase -= 6.283185307179586;
+            leftChannel[i]  += s;
+            rightChannel[i] += s;
+        }
+    }
 
     // Measure raw input peak
     float inPeakL = buffer.getMagnitude(0, 0, numSamples);
@@ -330,12 +463,15 @@ void StrataAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         outputPeakL_.store(inPeakL, std::memory_order_relaxed);
         outputPeakR_.store(inPeakR, std::memory_order_relaxed);
         correlationMeter_.process(leftChannel, rightChannel, static_cast<size_t>(numSamples));
+        bs1770Meter_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples));
+        truePeakMeter_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples));
+        spectrumAnalyzer_.pushAudioBlock(leftChannel, rightChannel, static_cast<size_t>(numSamples));
         return;
     }
 
     // 1. Target parameter updates
-    const float inGainDb   = inputGainParam_->load(std::memory_order_relaxed);
-    const float outGainDb  = outputGainParam_->load(std::memory_order_relaxed);
+    const float inGainDb    = inputGainParam_->load(std::memory_order_relaxed);
+    const float outGainDb   = outputGainParam_->load(std::memory_order_relaxed);
     const float targetWidth = stereoWidthParam_->load(std::memory_order_relaxed);
     const int   modeIdx     = static_cast<int>(stereoModeParam_->load(std::memory_order_relaxed));
 
@@ -364,49 +500,111 @@ void StrataAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         multibandDynamics_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples));
     }
 
-    // 5. Transient & Sustain Processing Stage
+    // 5. Multiband Transient & Sustain Processing Stage
     const bool isTransientBypassed = (transientBypassParam_ && transientBypassParam_->load(std::memory_order_relaxed) > 0.5f);
     if (!isTransientBypassed) {
         updateTransientParametersFromState();
-        float avgAttack = 0.0f;
-        float avgSustain = 0.0f;
+        bool anyTransientActive = false;
         for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
             const auto& s = transientProcessor_.getBandSettings(b);
-            if (s.enabled) {
-                avgAttack += s.attackGainDb;
-                avgSustain += s.sustainGainDb;
+            if (s.enabled && (std::abs(s.attackGainDb) > 0.05f || std::abs(s.sustainGainDb) > 0.05f)) {
+                anyTransientActive = true;
+                break;
             }
         }
-        avgAttack /= static_cast<float>(dsp::NUM_CROSSOVER_BANDS);
-        avgSustain /= static_cast<float>(dsp::NUM_CROSSOVER_BANDS);
+        if (anyTransientActive) {
+            for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
+                if (transientBandBuffersL_[b].size() < static_cast<size_t>(numSamples)) {
+                    transientBandBuffersL_[b].resize(static_cast<size_t>(numSamples));
+                    transientBandBuffersR_[b].resize(static_cast<size_t>(numSamples));
+                }
+            }
+            std::array<float*, dsp::NUM_CROSSOVER_BANDS> tPtrsL = {
+                transientBandBuffersL_[0].data(), transientBandBuffersL_[1].data(),
+                transientBandBuffersL_[2].data(), transientBandBuffersL_[3].data()
+            };
+            std::array<float*, dsp::NUM_CROSSOVER_BANDS> tPtrsR = {
+                transientBandBuffersR_[0].data(), transientBandBuffersR_[1].data(),
+                transientBandBuffersR_[2].data(), transientBandBuffersR_[3].data()
+            };
 
-        transientProcessor_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples), avgAttack, avgSustain);
+            transientCrossover_.splitChannel(0, leftChannel, tPtrsL.data(), static_cast<size_t>(numSamples));
+            transientCrossover_.splitChannel(1, rightChannel, tPtrsR.data(), static_cast<size_t>(numSamples));
+
+            float* tMultiband[dsp::NUM_CROSSOVER_BANDS][2] = {
+                { tPtrsL[0], tPtrsR[0] },
+                { tPtrsL[1], tPtrsR[1] },
+                { tPtrsL[2], tPtrsR[2] },
+                { tPtrsL[3], tPtrsR[3] }
+            };
+            transientProcessor_.processMultiband(tMultiband, static_cast<size_t>(numSamples));
+
+            dsp::CrossoverFilterbank::sumChannel(tPtrsL.data(), leftChannel, static_cast<size_t>(numSamples));
+            dsp::CrossoverFilterbank::sumChannel(tPtrsR.data(), rightChannel, static_cast<size_t>(numSamples));
+        }
     }
 
-    // 6. Harmonic Exciter & Saturation Stage
+    // 6. Multiband Harmonic Exciter & Saturation Stage
     const bool isExciterBypassed = (exciterBypassParam_ && exciterBypassParam_->load(std::memory_order_relaxed) > 0.5f);
     if (!isExciterBypassed) {
         updateExciterParametersFromState();
-        float maxDrive = 0.0f;
-        float avgMix = 1.0f;
-        dsp::SaturationMode primaryMode = dsp::SaturationMode::Tape;
+        bool anyExciterActive = false;
         for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
             const auto& s = saturator_.getBandSettings(b);
-            if (s.enabled && s.drive > maxDrive) {
-                maxDrive = s.drive;
-                avgMix = s.mix;
-                primaryMode = s.mode;
+            if (s.enabled && s.drive > 0.001f) {
+                anyExciterActive = true;
+                break;
             }
         }
-        if (maxDrive > 0.001f) {
-            saturator_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples), primaryMode, maxDrive, avgMix);
+        if (anyExciterActive) {
+            for (size_t b = 0; b < dsp::NUM_CROSSOVER_BANDS; ++b) {
+                if (exciterBandBuffersL_[b].size() < static_cast<size_t>(numSamples)) {
+                    exciterBandBuffersL_[b].resize(static_cast<size_t>(numSamples));
+                    exciterBandBuffersR_[b].resize(static_cast<size_t>(numSamples));
+                }
+            }
+            std::array<float*, dsp::NUM_CROSSOVER_BANDS> ePtrsL = {
+                exciterBandBuffersL_[0].data(), exciterBandBuffersL_[1].data(),
+                exciterBandBuffersL_[2].data(), exciterBandBuffersL_[3].data()
+            };
+            std::array<float*, dsp::NUM_CROSSOVER_BANDS> ePtrsR = {
+                exciterBandBuffersR_[0].data(), exciterBandBuffersR_[1].data(),
+                exciterBandBuffersR_[2].data(), exciterBandBuffersR_[3].data()
+            };
+
+            exciterCrossover_.splitChannel(0, leftChannel, ePtrsL.data(), static_cast<size_t>(numSamples));
+            exciterCrossover_.splitChannel(1, rightChannel, ePtrsR.data(), static_cast<size_t>(numSamples));
+
+            float* eMultiband[dsp::NUM_CROSSOVER_BANDS][2] = {
+                { ePtrsL[0], ePtrsR[0] },
+                { ePtrsL[1], ePtrsR[1] },
+                { ePtrsL[2], ePtrsR[2] },
+                { ePtrsL[3], ePtrsR[3] }
+            };
+            saturator_.processMultiband(eMultiband, static_cast<size_t>(numSamples));
+
+            dsp::CrossoverFilterbank::sumChannel(ePtrsL.data(), leftChannel, static_cast<size_t>(numSamples));
+            dsp::CrossoverFilterbank::sumChannel(ePtrsR.data(), rightChannel, static_cast<size_t>(numSamples));
         }
     }
 
-    // 7. Stereo & Mid/Side Processing
+    // 6.5 Maserati Analog Tone Processor Stage
+    const bool isMaseratiBypassed = (maseratiBypassParam_ && maseratiBypassParam_->load(std::memory_order_relaxed) > 0.5f);
+    if (!isMaseratiBypassed) {
+        if (maseratiBassParam_) maseratiProcessor_.setBass(maseratiBassParam_->load(std::memory_order_relaxed));
+        if (maseratiTrebleParam_) maseratiProcessor_.setTreble(maseratiTrebleParam_->load(std::memory_order_relaxed));
+        if (maseratiSensitivityParam_) maseratiProcessor_.setSensitivity(maseratiSensitivityParam_->load(std::memory_order_relaxed));
+        maseratiProcessor_.setEnabled(true);
+        maseratiProcessor_.processStereo(leftChannel, rightChannel, static_cast<size_t>(numSamples));
+    } else {
+        maseratiProcessor_.setEnabled(false);
+    }
+
+    // 7. Stereo & Mid/Side Processing Stage
     updateStereoParametersFromState();
     const auto mode = static_cast<dsp::StereoMode>(std::clamp(modeIdx, 0, 3));
-    const float currentWidth = stereoWidthSmoother_.getNextValue();
+    stereoWidthSmoother_.skip(numSamples);
+    const float currentWidth = stereoWidthSmoother_.getCurrentValue();
     stereoProcessor_.process(leftChannel, rightChannel, static_cast<size_t>(numSamples), mode, currentWidth);
 
     // 8. Output Gain Stage
@@ -458,9 +656,16 @@ void StrataAudioProcessor::setStateInformation(const void* data, int sizeInBytes
     }
 }
 
+
+void StrataAudioProcessor::getLissajousPoints(std::array<std::pair<float, float>, LISSAJOUS_SAMPLES>& dest) const noexcept {
+    for (size_t i = 0; i < LISSAJOUS_SAMPLES; ++i) {
+        dest[i].first = lissajousL_[i].load(std::memory_order_relaxed);
+        dest[i].second = lissajousR_[i].load(std::memory_order_relaxed);
+    }
+}
+
 } // namespace strata::engine
 
-// JUCE Plugin Entry Point
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
     return new strata::engine::StrataAudioProcessor();
 }

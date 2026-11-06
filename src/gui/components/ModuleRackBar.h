@@ -14,6 +14,7 @@ enum class ModuleID {
     Exciter,
     Imager,
     Maximizer,
+    Maserati,
     Assistant
 };
 
@@ -29,8 +30,10 @@ public:
     [[nodiscard]] ModuleID getSelectedModule() const noexcept { return activeModule_; }
 
     std::function<void(ModuleID)> onModuleSelected;
+    void showAddModuleMenu();
 
 private:
+    juce::TextButton addModuleButton_;
     struct ModuleTab {
         ModuleID id{ ModuleID::Equalizer };
         juce::String name;
@@ -43,7 +46,7 @@ private:
     void setupTab(size_t index, ModuleID id, const juce::String& name, const juce::String& acronym, const juce::String& bypassParam);
 
     juce::AudioProcessorValueTreeState& apvts_;
-    std::array<std::unique_ptr<ModuleTab>, 6> tabs_;
+    std::array<std::unique_ptr<ModuleTab>, 7> tabs_;
     ModuleID activeModule_{ ModuleID::Equalizer };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ModuleRackBar)

@@ -391,6 +391,39 @@ juce::AudioProcessorValueTreeState::ParameterLayout ParameterLayout::createParam
     ));
 
     // =========================================================================
+    // Maserati Analog Tone Processor Parameters
+    // =========================================================================
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{juce::String(param::MaseratiBypass.data()), 1},
+        "Maserati Bypass",
+        false
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{juce::String(param::MaseratiBass.data()), 1},
+        "Maserati Bass",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{juce::String(param::MaseratiTreble.data()), 1},
+        "Maserati Treble",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{juce::String(param::MaseratiSensitivity.data()), 1},
+        "Maserati Sensitivity",
+        juce::NormalisableRange<float>(-24.0f, 12.0f, 0.1f),
+        0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")
+    ));
+
+    // =========================================================================
     // Lookahead True-Peak Limiter & Maximizer Parameters
     // =========================================================================
     params.push_back(std::make_unique<juce::AudioParameterBool>(

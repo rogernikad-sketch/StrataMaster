@@ -9,6 +9,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <algorithm>
 
 namespace strata::assistant {
 
@@ -23,9 +24,13 @@ struct MasteringRecommendations {
     float limiterThresholdDb{ -1.0f };
     float limiterCeilingDb{ -1.0f };
     float monoMakerFreqHz{ 80.0f };
-    float stereoWidth{ 100.0f };
-    std::array<float, 4> dynThresholdsDb{ -12.0f, -12.0f, -12.0f, -12.0f };
-    std::array<float, 4> dynRatios{ 2.0f, 1.8f, 1.8f, 1.5f };
+    float stereoWidth{ 105.0f };
+    std::array<float, 4> dynThresholdsDb{ -16.0f, -18.0f, -20.0f, -22.0f };
+    std::array<float, 4> dynRatios{ 2.0f, 2.0f, 2.0f, 2.0f };
+    std::array<int, 4> exciterModes{ 0, 0, 0, 0 };
+    std::array<float, 4> exciterDrives{ 10.0f, 8.0f, 12.0f, 15.0f };
+    std::array<float, 4> transientAttacks{ 0.0f, 0.0f, 0.0f, 0.0f };
+    std::array<float, 4> transientSustains{ 0.0f, 0.0f, 0.0f, 0.0f };
     float measuredLufs{ -20.0f };
     float measuredCrestFactorDb{ 10.0f };
 };
@@ -46,6 +51,7 @@ public:
     // Workflow Control
     void setTargetGenre(GenreProfile genre) noexcept;
     [[nodiscard]] GenreProfile getTargetGenre() const noexcept { return targetProfile_.genre; }
+    [[nodiscard]] const TargetProfile& getTargetProfile() const noexcept { return targetProfile_; }
 
     void startListening() noexcept;
     void cancelListening() noexcept;
@@ -65,6 +71,28 @@ public:
     }
 
     void applyRecommendations(juce::AudioProcessorValueTreeState& apvts);
+    void applyGenreDefaults(juce::AudioProcessorValueTreeState& apvts);
+
+    // Assistant Macros (Ozone 12 Reference Macros)
+    void setMacroTonalBalance(float percent) noexcept { tonalBalanceMacro_ = std::clamp(percent, 0.0f, 200.0f); }
+    [[nodiscard]] float getMacroTonalBalance() const noexcept { return tonalBalanceMacro_; }
+
+    void setMacroLoudness(float offsetDb) noexcept { loudnessMacroDb_ = std::clamp(offsetDb, -6.0f, 6.0f); }
+    [[nodiscard]] float getMacroLoudness() const noexcept { return loudnessMacroDb_; }
+
+    void setMacroDynamicsMatch(float percent) noexcept { dynamicsMatchMacro_ = std::clamp(percent, 0.0f, 200.0f); }
+    [[nodiscard]] float getMacroDynamicsMatch() const noexcept { return dynamicsMatchMacro_; }
+
+    void setMacroWidthMatch(float percent) noexcept { widthMatchMacro_ = std::clamp(percent, 0.0f, 200.0f); }
+    [[nodiscard]] float getMacroWidthMatch() const noexcept { return widthMatchMacro_; }
+
+    void setMacroClarity(float percent) noexcept { clarityMacro_ = std::clamp(percent, 0.0f, 100.0f); }
+    [[nodiscard]] float getMacroClarity() const noexcept { return clarityMacro_; }
+
+    void setMacroStabilizer(float percent) noexcept { stabilizerMacro_ = std::clamp(percent, 0.0f, 100.0f); }
+    [[nodiscard]] float getMacroStabilizer() const noexcept { return stabilizerMacro_; }
+
+    void applyMacroAdjustments(juce::AudioProcessorValueTreeState& apvts);
 
     // Static helper to calculate EQ corrections for testing and direct inspection
     static std::array<float, 8> calculateEqCorrections(
@@ -79,6 +107,14 @@ private:
 
     TargetProfile targetProfile_;
     MasteringRecommendations recommendations_;
+
+    // Macro states
+    float tonalBalanceMacro_{ 100.0f };
+    float loudnessMacroDb_{ 0.0f };
+    float dynamicsMatchMacro_{ 100.0f };
+    float widthMatchMacro_{ 100.0f };
+    float clarityMacro_{ 25.0f };
+    float stabilizerMacro_{ 30.0f };
 
     // Analysis components
     analysis::BS1770LoudnessMeter loudnessMeter_;

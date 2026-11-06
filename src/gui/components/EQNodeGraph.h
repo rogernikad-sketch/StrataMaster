@@ -9,16 +9,14 @@ namespace strata::gui {
 
 /**
  * Interactive 8-Band Parametric EQ Vector Node Graph.
- * Supports:
- * - Mouse drag for Frequency and Gain
- * - Mouse wheel for Q
- * - Double click to toggle band enable/bypass
- * - Real-time composite filter curve calculation and rendering
+ * Real-time composite filter curve calculation and rendering for Bell, Shelves, and Cuts.
+ * Automatically synchronizes with APVTS parameter changes and GUI knobs.
  */
-class EQNodeGraph final : public juce::Component {
+class EQNodeGraph final : public juce::Component,
+                          public juce::AudioProcessorValueTreeState::Listener {
 public:
     explicit EQNodeGraph(juce::AudioProcessorValueTreeState& apvts);
-    ~EQNodeGraph() override = default;
+    ~EQNodeGraph() override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -29,7 +27,10 @@ public:
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
     void mouseDoubleClick(const juce::MouseEvent& e) override;
 
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
     void updateCurvesFromAPVTS();
+
+    std::function<void(int)> onBandSelected;
 
 private:
     [[nodiscard]] int getBandUnderMouse(juce::Point<float> pos) const noexcept;
@@ -42,13 +43,13 @@ private:
         float gainDb{ 0.0f };
         float q{ 0.707f };
         bool enabled{ true };
-        int type{ 0 }; // 0: Bell, etc.
+        int type{ 0 }; // 0: Bell, 1: LowShelf, 2: HighShelf, 3: LowPass, 4: HighPass, etc.
         juce::Point<float> screenPos;
     };
     std::array<NodeData, 8> nodes_;
 
     int draggedBandIndex_{ -1 };
-    int hoveredBandIndex_{ -1 };
+    int selectedBandIndex_{ 0 };
 
     static constexpr float minFreqHz = 20.0f;
     static constexpr float maxFreqHz = 20000.0f;

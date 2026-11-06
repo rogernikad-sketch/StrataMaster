@@ -40,6 +40,8 @@ set(STRATA_SOURCES
     src/dsp/SoftClipper.h
     src/dsp/TruePeakLimiter.h
     src/dsp/TruePeakLimiter.cpp
+    src/dsp/MaseratiProcessor.h
+    src/dsp/MaseratiProcessor.cpp
     src/engine/ParameterIDs.h
     src/engine/ParameterLayout.h
     src/engine/ParameterLayout.cpp
@@ -90,6 +92,8 @@ set(STRATA_SOURCES
     src/gui/views/ImagerView.cpp
     src/gui/views/MaximizerView.h
     src/gui/views/MaximizerView.cpp
+    src/gui/views/MaseratiView.h
+    src/gui/views/MaseratiView.cpp
     src/gui/views/MasterAssistantView.h
     src/gui/views/MasterAssistantView.cpp
     src/gui/StrataAudioEditor.h
@@ -104,7 +108,7 @@ juce_add_plugin(StrataMaster
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD TRUE
+    COPY_PLUGIN_AFTER_BUILD FALSE
     PLUGIN_MANUFACTURER_CODE StAu
     PLUGIN_CODE StMa
     FORMATS VST3 Standalone
@@ -130,6 +134,8 @@ target_compile_definitions(StrataMaster PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0
 )
 
 strata_set_compiler_warnings(StrataMaster)

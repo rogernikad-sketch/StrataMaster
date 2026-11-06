@@ -68,6 +68,12 @@ inline constexpr std::string_view ClipperEnable    = "clipper_enable";
 inline constexpr std::string_view ClipperCeiling   = "clipper_ceiling";
 inline constexpr std::string_view ClipperKnee      = "clipper_knee";
 
+// Maserati Analog Tone Processor
+inline constexpr std::string_view MaseratiBypass      = "maserati_bypass";
+inline constexpr std::string_view MaseratiBass        = "maserati_bass";
+inline constexpr std::string_view MaseratiTreble      = "maserati_treble";
+inline constexpr std::string_view MaseratiSensitivity = "maserati_sensitivity";
+
 // Limiter & Maximizer
 inline constexpr std::string_view LimiterBypass   = "limiter_bypass";
 inline constexpr std::string_view LimiterCeiling  = "limiter_ceiling";

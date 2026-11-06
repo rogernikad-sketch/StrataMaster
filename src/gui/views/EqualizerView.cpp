@@ -9,6 +9,7 @@ EqualizerView::EqualizerView(juce::AudioProcessorValueTreeState& apvts)
 
     addAndMakeVisible(spectrumDisplay_);
     eqGraph_ = std::make_unique<EQNodeGraph>(apvts_);
+    eqGraph_->onBandSelected = [this](int b) { selectBand(b); };
     addAndMakeVisible(*eqGraph_);
 
     // Band select buttons 1..8
@@ -22,12 +23,14 @@ EqualizerView::EqualizerView(juce::AudioProcessorValueTreeState& apvts)
         addAndMakeVisible(bandSelectButtons_[b]);
     }
 
-    // Filter Type Box
-    filterTypeBox_.addItem("High-Pass", 1);
+    // Filter Type Box (Exact 1:1 mapping with APVTS typeChoices)
+    filterTypeBox_.addItem("Bell", 1);
     filterTypeBox_.addItem("Low-Shelf", 2);
-    filterTypeBox_.addItem("Bell", 3);
-    filterTypeBox_.addItem("High-Shelf", 4);
-    filterTypeBox_.addItem("Low-Pass", 5);
+    filterTypeBox_.addItem("High-Shelf", 3);
+    filterTypeBox_.addItem("Low-Pass", 4);
+    filterTypeBox_.addItem("High-Pass", 5);
+    filterTypeBox_.addItem("Notch", 6);
+    filterTypeBox_.addItem("Band-Pass", 7);
     filterTypeBox_.setColour(juce::ComboBox::backgroundColourId, StrataLookAndFeel::panelBg);
     filterTypeBox_.setColour(juce::ComboBox::textColourId, StrataLookAndFeel::textLight);
     addAndMakeVisible(filterTypeBox_);
@@ -120,17 +123,17 @@ void EqualizerView::paint(juce::Graphics& g) {
 
     // Bottom strip surface background
     g.setColour(StrataLookAndFeel::panelBg.darker(0.1f));
-    g.fillRect(0, getHeight() - 100, getWidth(), 100);
+    g.fillRect(0, getHeight() - 120, getWidth(), 120);
 
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawHorizontalLine(getHeight() - 100, 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine(getHeight() - 120, 0.0f, static_cast<float>(getWidth()));
 }
 
 void EqualizerView::resized() {
     auto bounds = getLocalBounds();
 
-    // Bottom Controls Strip (100px)
-    auto bottomArea = bounds.removeFromBottom(100).reduced(12, 6);
+    // Bottom Controls Strip (120px)
+    auto bottomArea = bounds.removeFromBottom(120).reduced(12, 8);
 
     // Left band selector buttons (8 buttons, 24px wide each)
     auto bandSelectArea = bottomArea.removeFromLeft(220);

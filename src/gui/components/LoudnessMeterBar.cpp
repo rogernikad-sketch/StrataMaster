@@ -38,16 +38,28 @@ void LoudnessMeterBar::paint(juce::Graphics& g) {
     const bool isOverload = (maxTruePeakHoldDb_ > -0.1f);
     g.setColour(isOverload ? juce::Colours::red : (maxTruePeakHoldDb_ > -1.0f ? StrataLookAndFeel::accentGold : StrataLookAndFeel::accentCyan));
     g.setFont(juce::Font(10.0f, juce::Font::bold));
-    g.drawText(juce::String::formatted("%.1f dBTP", maxTruePeakHoldDb_), topArea, juce::Justification::centred);
+    if (maxTruePeakHoldDb_ <= -70.0f) {
+        g.drawText("--- dBTP", topArea, juce::Justification::centred);
+    } else {
+        g.drawText(juce::String::formatted("%.1f dBTP", maxTruePeakHoldDb_), topArea, juce::Justification::centred);
+    }
 
     // Bottom Footer: Integrated LUFS & LRA
     auto bottomArea = bounds.removeFromBottom(36.0f).reduced(4.0f, 2.0f);
     g.setColour(StrataLookAndFeel::textLight);
     g.setFont(juce::Font(10.0f, juce::Font::bold));
-    g.drawText(juce::String::formatted("%.1f LUFS", integratedLufs_), bottomArea.removeFromTop(16.0f), juce::Justification::centred);
+    if (integratedLufs_ <= -70.0f) {
+        g.drawText("--- LUFS", bottomArea.removeFromTop(16.0f), juce::Justification::centred);
+    } else {
+        g.drawText(juce::String::formatted("%.1f LUFS", integratedLufs_), bottomArea.removeFromTop(16.0f), juce::Justification::centred);
+    }
     g.setColour(StrataLookAndFeel::textDim);
     g.setFont(juce::Font(9.0f));
-    g.drawText(juce::String::formatted("LRA: %.1f", lraLu_), bottomArea, juce::Justification::centred);
+    if (integratedLufs_ <= -70.0f) {
+        g.drawText("LRA: ---", bottomArea, juce::Justification::centred);
+    } else {
+        g.drawText(juce::String::formatted("LRA: %.1f", lraLu_), bottomArea, juce::Justification::centred);
+    }
 
     // Center Meter Columns: 2 bars (Momentary LUFS on left, True Peak on right)
     auto meterArea = bounds.reduced(6.0f, 4.0f);

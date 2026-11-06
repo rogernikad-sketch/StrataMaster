@@ -11,6 +11,7 @@
 #include "views/ExciterView.h"
 #include "views/ImagerView.h"
 #include "views/MaximizerView.h"
+#include "views/MaseratiView.h"
 #include "views/MasterAssistantView.h"
 
 namespace strata::engine {
@@ -43,6 +44,10 @@ private:
     juce::ComboBox presetBox_;
     juce::TextButton prevPresetBtn_{ "<" };
     juce::TextButton nextPresetBtn_{ ">" };
+    juce::TextButton loadAudioBtn_{ "LOAD FILE" };
+    juce::TextButton auditionPlayBtn_{ "AUDITION" };
+    juce::ComboBox testToneBox_;
+    std::unique_ptr<juce::FileChooser> fileChooser_;
     juce::TextButton assistantHeaderBtn_{ "MASTER ASSISTANT" };
     juce::TextButton abButton_{ "TRACK A" };
     juce::ToggleButton gainMatchButton_{ "GAIN MATCH" };
@@ -58,6 +63,7 @@ private:
     ExciterView exciterView_;
     ImagerView imagerView_;
     MaximizerView maximizerView_;
+    MaseratiView maseratiView_;
     MasterAssistantView assistantView_;
 
     // 4. Right Master I/O & Broadcast Metering Stage

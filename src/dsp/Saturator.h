@@ -28,7 +28,6 @@ struct BandExciterSettings {
 class DCBlocker {
 public:
     void prepare(double sampleRate) noexcept {
-        // R = 1.0 - (2 * pi * fc / fs)
         const double fc = 5.0;
         const double twoPi = 6.283185307179586;
         R_ = static_cast<float>(1.0 - (twoPi * fc / sampleRate));
@@ -68,8 +67,8 @@ public:
     void reset() noexcept;
 
     void setOversamplingFactor(OversamplingFactor factor);
-    [[nodiscard]] OversamplingFactor getOversamplingFactor() const noexcept { return oversampler_.getFactor(); }
-    [[nodiscard]] size_t getLatencyInSamples() const noexcept { return oversampler_.getLatencyInSamples(); }
+    [[nodiscard]] OversamplingFactor getOversamplingFactor() const noexcept { return widebandOversampler_.getFactor(); }
+    [[nodiscard]] size_t getLatencyInSamples() const noexcept { return widebandOversampler_.getLatencyInSamples(); }
 
     void setBandSettings(size_t band, const BandExciterSettings& settings) noexcept;
     [[nodiscard]] const BandExciterSettings& getBandSettings(size_t band) const noexcept;
@@ -97,12 +96,13 @@ public:
 private:
     void processOversampledBand(float* left, float* right, size_t numSamples,
                                 SaturationMode mode, float drive, float mix,
-                                size_t bandIdx) noexcept;
+                                size_t bandIdx, Oversampler& os) noexcept;
 
     double sampleRate_{ 44100.0 };
     size_t maxBlockSize_{ 1024 };
 
-    Oversampler oversampler_;
+    std::array<Oversampler, NUM_CROSSOVER_BANDS> bandOversamplers_;
+    Oversampler widebandOversampler_;
 
     std::array<BandExciterSettings, NUM_CROSSOVER_BANDS> bandSettings_;
 
