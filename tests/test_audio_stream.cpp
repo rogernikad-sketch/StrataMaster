@@ -1,6 +1,12 @@
+#if __has_include("catch2/catch_test_macros.hpp")
+#include "catch2/catch_test_macros.hpp"
+#include "catch2/catch_approx.hpp"
+#include "catch2/matchers/catch_matchers_floating_point.hpp"
+#else
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#endif
 #include "../src/engine/StrataAudioProcessor.h"
 #include "../src/engine/ParameterIDs.h"
 #include "../src/dsp/common/Constants.h"
