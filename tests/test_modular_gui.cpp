@@ -50,10 +50,15 @@ TEST_CASE("StrataAudioEditor instantiation, module switching, and resizing", "[g
         REQUIRE(editor->getWidth() == 1040);
         REQUIRE(editor->getHeight() == 640);
 
-        // Large 4K / Ultrawide size
+        // Large Ultrawide size
         editor->setSize(1440, 900);
         REQUIRE(editor->getWidth() == 1440);
         REQUIRE(editor->getHeight() == 900);
+
+        // 4K UHD Ultra-High Resolution
+        editor->setSize(3840, 2160);
+        REQUIRE(editor->getWidth() == 3840);
+        REQUIRE(editor->getHeight() == 2160);
     }
 
     SECTION("Timer callback updates metering telemetry safely") {
