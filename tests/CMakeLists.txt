@@ -16,6 +16,7 @@ set(TEST_SOURCES
     test_saturator.cpp
     test_transient.cpp
     test_limiter.cpp
+    test_maserati.cpp
     test_bs1770.cpp
     test_preset.cpp
     test_assistant.cpp
@@ -25,6 +26,7 @@ set(TEST_SOURCES
     ../src/dsp/StereoProcessor.cpp
     ../src/dsp/BiquadFilter.cpp
     ../src/dsp/DynamicEqualizer.cpp
+    ../src/dsp/MaseratiProcessor.cpp
     ../src/dsp/CrossoverFilterbank.cpp
     ../src/dsp/MultibandDynamics.cpp
     ../src/dsp/Oversampler.cpp
@@ -55,6 +57,7 @@ set(TEST_SOURCES
     ../src/gui/views/ExciterView.cpp
     ../src/gui/views/ImagerView.cpp
     ../src/gui/views/MaximizerView.cpp
+    ../src/gui/views/MaseratiView.cpp
     ../src/gui/views/MasterAssistantView.cpp
     ../src/gui/StrataAudioEditor.cpp
 )

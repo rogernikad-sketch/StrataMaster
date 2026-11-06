@@ -18,13 +18,14 @@ TEST_CASE("StrataAudioEditor instantiation, module switching, and resizing", "[g
         REQUIRE(editor->getHeight() >= 580);
     }
 
-    SECTION("Module rack switching across all 6 modules") {
+    SECTION("Module rack switching across all 7 modules") {
         const strata::gui::ModuleID modules[] = {
             strata::gui::ModuleID::Equalizer,
             strata::gui::ModuleID::Dynamics,
             strata::gui::ModuleID::Exciter,
             strata::gui::ModuleID::Imager,
             strata::gui::ModuleID::Maximizer,
+            strata::gui::ModuleID::Maserati,
             strata::gui::ModuleID::Assistant
         };
 

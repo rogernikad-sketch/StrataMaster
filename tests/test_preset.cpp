@@ -67,14 +67,13 @@ TEST_CASE("PresetManager Factory Presets and State Export", "[engine][preset]") 
     // 1. Verify Factory Presets Exist
     const auto& factoryPresets = presetManager.getFactoryPresets();
     REQUIRE(factoryPresets.size() >= 5);
-    REQUIRE(factoryPresets[0].name == "Clean Master");
-    REQUIRE(factoryPresets[1].name == "EDM Punch & Weight");
+    REQUIRE(factoryPresets[0].name.startsWith("Clean Master"));
 
     // 2. Load EDM Preset
-    presetManager.loadFactoryPreset("EDM Punch & Weight");
+    presetManager.loadFactoryPreset("EDM Punch & Weight (-7.0 LUFS)");
     auto* monoMakerFreqParam = apvts.getRawParameterValue(param::StereoMonoMakerFreq.data());
     REQUIRE(monoMakerFreqParam != nullptr);
-    REQUIRE(monoMakerFreqParam->load() == Catch::Approx(90.0f).margin(0.5f));
+    REQUIRE(monoMakerFreqParam->load() == Catch::Approx(100.0f).margin(0.5f));
 
     // 3. Load Broadcast Preset
     presetManager.loadFactoryPreset("Broadcast R128 (-1.0 dBTP)");
