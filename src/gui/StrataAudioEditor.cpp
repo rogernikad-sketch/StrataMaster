@@ -172,10 +172,10 @@ StrataAudioEditor::StrataAudioEditor(engine::StrataAudioProcessor& processor)
     outputGainKnob_ = std::make_unique<Knob>(processor_.getAPVTS(), param::OutputGain.data(), "OUT GAIN");
     addAndMakeVisible(*outputGainKnob_);
 
-    // Resizable Window Support
+    // Resizable Window Support (Up to 4K UHD 3840x2160)
     setResizable(true, true);
-    setResizeLimits(1000, 620, 1680, 1050);
-    setSize(1120, 700);
+    setResizeLimits(960, 580, 3840, 2160);
+    setSize(1200, 750);
 
     const auto cmd = juce::JUCEApplicationBase::getCommandLineParameters();
     if (cmd.containsIgnoreCase("dynamics")) {
@@ -310,23 +310,53 @@ void StrataAudioEditor::timerCallback() {
 }
 
 void StrataAudioEditor::paint(juce::Graphics& g) {
-    g.fillAll(StrataLookAndFeel::bgDark);
+    auto bounds = getLocalBounds().toFloat();
 
-    // Top Header Banner
-    g.setColour(StrataLookAndFeel::panelBg);
-    g.fillRect(0, 0, getWidth(), 44);
+    // 1. 4K Deep Obsidian Titanium Chassis Background
+    juce::ColourGradient chassisGrad(
+        juce::Colour::fromRGB(13, 15, 20), 0.0f, 0.0f,
+        juce::Colour::fromRGB(20, 24, 32), bounds.getWidth(), bounds.getHeight(), false);
+    g.setGradientFill(chassisGrad);
+    g.fillAll();
 
+    // 2. 3D Machined Header Strip (44px)
+    auto headerRect = juce::Rectangle<float>(0.0f, 0.0f, bounds.getWidth(), 44.0f);
+    juce::ColourGradient headerGrad(
+        juce::Colour::fromRGB(30, 35, 47), 0.0f, 0.0f,
+        juce::Colour::fromRGB(18, 21, 28), 0.0f, 44.0f, false);
+    g.setGradientFill(headerGrad);
+    g.fillRect(headerRect);
+
+    // 3D Top Specular Chamfer Highlight (1px)
+    g.setColour(juce::Colour::fromRGBA(255, 255, 255, 38));
+    g.drawLine(0.0f, 0.5f, bounds.getWidth(), 0.5f, 1.0f);
+
+    // Header Bottom Recessed Groove & Drop Shadow
+    g.setColour(juce::Colour::fromRGB(8, 10, 14));
+    g.drawHorizontalLine(43, 0.0f, bounds.getWidth());
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawHorizontalLine(44, 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine(44, 0.0f, bounds.getWidth());
 
-    // Right Metering Panel Background
-    const int rightWidth = 145;
-    const int rightX = getWidth() - rightWidth;
-    g.setColour(StrataLookAndFeel::panelBg.darker(0.12f));
-    g.fillRect(rightX, 44, rightWidth, getHeight() - 44);
+    // 3. 3D Recessed Right Metering Dock (145px)
+    const float rightWidth = 145.0f;
+    const float rightX = bounds.getWidth() - rightWidth;
+    auto dockRect = juce::Rectangle<float>(rightX, 44.0f, rightWidth, bounds.getHeight() - 44.0f);
 
+    juce::ColourGradient dockGrad(
+        juce::Colour::fromRGB(16, 18, 24), rightX, 44.0f,
+        juce::Colour::fromRGB(10, 12, 16), bounds.getWidth(), bounds.getHeight(), false);
+    g.setGradientFill(dockGrad);
+    g.fillRect(dockRect);
+
+    // Dock Left Bevel Shadow & Specular Lip
+    g.setColour(juce::Colour::fromRGBA(0, 0, 0, 130));
+    g.drawVerticalLine(static_cast<int>(rightX), 44.0f, bounds.getHeight());
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawVerticalLine(rightX, 44.0f, static_cast<float>(getHeight()));
+    g.drawVerticalLine(static_cast<int>(rightX + 1.0f), 44.0f, bounds.getHeight());
+
+    // Subtle 4K Neon Dock Corner Indicator
+    g.setColour(StrataLookAndFeel::accentCyan.withAlpha(0.7f));
+    g.fillRect(rightX + 1.0f, 44.0f, 2.0f, 28.0f);
 }
 
 void StrataAudioEditor::resized() {

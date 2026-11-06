@@ -120,19 +120,38 @@ void ModuleRackBar::setSelectedModule(ModuleID id) {
 }
 
 void ModuleRackBar::paint(juce::Graphics& g) {
-    g.fillAll(StrataLookAndFeel::bgDark);
+    auto bounds = getLocalBounds().toFloat();
 
+    // 3D Machined Rack Strip Background
+    juce::ColourGradient barGrad(
+        juce::Colour::fromRGB(19, 23, 31), 0.0f, 0.0f,
+        juce::Colour::fromRGB(13, 15, 20), 0.0f, bounds.getHeight(), false);
+    g.setGradientFill(barGrad);
+    g.fillRect(bounds);
+
+    // Subtle 3D Top Specular Lip
+    g.setColour(juce::Colour::fromRGBA(255, 255, 255, 22));
+    g.drawHorizontalLine(0, 0.0f, bounds.getWidth());
+
+    // Bottom Separator Line
     g.setColour(StrataLookAndFeel::borderSubtle);
-    g.drawHorizontalLine(getHeight() - 1, 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine(static_cast<int>(bounds.getHeight() - 1.0f), 0.0f, bounds.getWidth());
 
-    // Draw active highlight underline beneath the active module tab
+    // Draw 3D Glowing Neon Underline beneath the active module tab
     for (const auto& tabPtr : tabs_) {
         if (!tabPtr) continue;
         const auto& tab = *tabPtr;
         if (tab.id == activeModule_) {
-            const auto bounds = tab.selectButton.getBounds().toFloat();
-            g.setColour((tab.id == ModuleID::Assistant) ? StrataLookAndFeel::accentGold : StrataLookAndFeel::accentCyan);
-            g.fillRect(bounds.getX(), static_cast<float>(getHeight() - 3), bounds.getWidth(), 3.0f);
+            const auto tabRect = tab.selectButton.getBounds().toFloat();
+            const auto accent = (tab.id == ModuleID::Assistant) ? StrataLookAndFeel::accentGold : StrataLookAndFeel::accentCyan;
+            
+            // Soft Neon Glow Underneath
+            g.setColour(accent.withAlpha(0.35f));
+            g.fillRoundedRectangle(tabRect.getX(), bounds.getHeight() - 4.0f, tabRect.getWidth(), 4.0f, 2.0f);
+
+            // Laser Sharp Neon Bar
+            g.setColour(accent);
+            g.fillRoundedRectangle(tabRect.getX() + 2.0f, bounds.getHeight() - 3.0f, tabRect.getWidth() - 4.0f, 2.5f, 1.25f);
             break;
         }
     }

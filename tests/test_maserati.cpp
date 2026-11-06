@@ -130,3 +130,4 @@ TEST_CASE("MaseratiProcessor tone shaping and activity response", "[dsp][maserat
         REQUIRE(maserati.getSensitivityActivity() == 0.0f);
     }
 }
+
