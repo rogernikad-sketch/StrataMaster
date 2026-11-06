@@ -1,0 +1,24 @@
+CompileFlags:
+  Add:
+    - -std=c++20
+    - -IC:/dev/StrataMaster/src
+    - -IC:/dev/StrataMaster/build/_deps/catch2-src/src
+    - -IC:/dev/StrataMaster/build/_deps/catch2-build/generated-includes
+    - -IC:/dev/JUCE/modules
+    - -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
+    - -DJUCE_STANDALONE_APPLICATION=1
+    - -DJUCE_MODULE_AVAILABLE_juce_audio_basics=1
+    - -DJUCE_MODULE_AVAILABLE_juce_audio_devices=1
+    - -DJUCE_MODULE_AVAILABLE_juce_audio_formats=1
+    - -DJUCE_MODULE_AVAILABLE_juce_audio_processors=1
+    - -DJUCE_MODULE_AVAILABLE_juce_audio_utils=1
+    - -DJUCE_MODULE_AVAILABLE_juce_core=1
+    - -DJUCE_MODULE_AVAILABLE_juce_data_structures=1
+    - -DJUCE_MODULE_AVAILABLE_juce_dsp=1
+    - -DJUCE_MODULE_AVAILABLE_juce_events=1
+    - -DJUCE_MODULE_AVAILABLE_juce_graphics=1
+    - -DJUCE_MODULE_AVAILABLE_juce_gui_basics=1
+    - -DJUCE_MODULE_AVAILABLE_juce_gui_extra=1
+Diagnostics:
+  Suppress:
+    - unused-includes
